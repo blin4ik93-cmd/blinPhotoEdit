@@ -275,6 +275,7 @@
       canvasWidth: state.canvasWidth,
       canvasHeight: state.canvasHeight,
       canvasBg: state.canvasBg,
+      customBgColor: state.customBgColor,
       pan: { ...state.pan }
     };
 
@@ -317,6 +318,9 @@
     state.canvasWidth = snapshot.canvasWidth;
     state.canvasHeight = snapshot.canvasHeight;
     state.canvasBg = snapshot.canvasBg;
+    if (snapshot.customBgColor) {
+      state.customBgColor = snapshot.customBgColor;
+    }
     if (snapshot.pan) {
       state.pan = { ...snapshot.pan };
     }
@@ -326,6 +330,12 @@
     dom.canvasWidthInput.value = state.canvasWidth;
     dom.canvasHeightInput.value = state.canvasHeight;
     dom.canvasBgSelect.value = state.canvasBg;
+    if (dom.canvasBgPicker) {
+      dom.canvasBgPicker.style.display = state.canvasBg === 'custom' ? 'inline-block' : 'none';
+      if (state.customBgColor) {
+        dom.canvasBgPicker.value = state.customBgColor;
+      }
+    }
 
     if (dom.canvasPresetSelect) {
       const matchOpt = Array.from(dom.canvasPresetSelect.options).find(o => o.value === `${state.canvasWidth}x${state.canvasHeight}`);
