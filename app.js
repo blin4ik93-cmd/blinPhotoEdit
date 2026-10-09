@@ -152,6 +152,8 @@
     chromaFeatherValue: document.getElementById('chromaFeatherValue'),
     chromaSpill: document.getElementById('chromaSpill'),
     chromaSpillValue: document.getElementById('chromaSpillValue'),
+    chromaSaturation: document.getElementById('chromaSaturation'),
+    chromaSaturationValue: document.getElementById('chromaSaturationValue'),
     
     // Слои
     layersList: document.getElementById('layersList'),
@@ -303,7 +305,7 @@
     state.layers = snapshot.layers.map(l => {
       const restored = {
         ...l,
-        chromaKey: l.chromaKey ? { ...l.chromaKey } : { enabled: false, color: '#00ff00', targetR: 0, targetG: 255, targetB: 0, tolerance: 40, feather: 15, spill: 50 },
+        chromaKey: l.chromaKey ? { ...l.chromaKey } : { enabled: false, color: '#00ff00', targetR: 0, targetG: 255, targetB: 0, tolerance: 40, feather: 15, spill: 50, saturation: 0 },
         processedCanvas: null
       };
       if (restored.chromaKey && restored.chromaKey.enabled) {
@@ -428,7 +430,8 @@
               targetB: 0,
               tolerance: 40,
               feather: 15,
-              spill: 50
+              spill: 50,
+              saturation: 0
             },
             processedCanvas: null
           };
@@ -482,7 +485,7 @@
       name: `${layer.name} (копия)`,
       x: layer.x + 25,
       y: layer.y + 25,
-      chromaKey: layer.chromaKey ? { ...layer.chromaKey } : { enabled: false, color: '#00ff00', targetR: 0, targetG: 255, targetB: 0, tolerance: 40, feather: 15, spill: 50 },
+      chromaKey: layer.chromaKey ? { ...layer.chromaKey } : { enabled: false, color: '#00ff00', targetR: 0, targetG: 255, targetB: 0, tolerance: 40, feather: 15, spill: 50, saturation: 0 },
       processedCanvas: null
     };
 
@@ -569,6 +572,27 @@
     const isGreenKey = tG > tR + 20 && tG > tB + 20;
     const isBlueKey = tB > tR + 20 && tB > tG + 20;
 
+    const satValue = typeof layer.chromaKey.saturation === 'number' ? layer.chromaKey.saturation : 0;
+    const satFactor = satValue / 100; // -1.0 до +1.0
+
+    let targetHue = 120; // по умолчанию зеленый
+    const tMax = Math.max(tR, tG, tB);
+    const tMin = Math.min(tR, tG, tB);
+    if (tMax - tMin > 20) {
+      if (tMax === tR) {
+        targetHue = (((tG - tB) / (tMax - tMin)) % 6) * 60;
+      } else if (tMax === tG) {
+        targetHue = (((tB - tR) / (tMax - tMin)) + 2) * 60;
+      } else {
+        targetHue = (((tR - tG) / (tMax - tMin)) + 4) * 60;
+      }
+      if (targetHue < 0) targetHue += 360;
+    } else if (isBlueKey) {
+      targetHue = 240;
+    } else {
+      targetHue = 120;
+    }
+
     for (let i = 0; i < len; i += 4) {
       const a = data[i + 3];
       if (a === 0) continue;
@@ -618,6 +642,83 @@
           const maxOther = Math.max(r, g);
           if (b > maxOther) {
             data[i + 2] = Math.round(b * (1 - intensity) + maxOther * intensity);
+          }
+        }
+      }
+
+      // Регулировка насыщенности (Photoshop Hue/Saturation для цвета хромакея)
+      if (satFactor !== 0 && data[i + 3] > 0) {
+        const curR = data[i];
+        const curG = data[i + 1];
+        const curB = data[i + 2];
+
+        // Быстрая оптимизация: если целевой оттенок зеленый, а зеленый канал минимальный - пропускаем
+        const isTargetNearGreen = (targetHue >= 80 && targetHue <= 160);
+        if (!isTargetNearGreen || curG > curR || curG > curB) {
+          const pMax = Math.max(curR, curG, curB);
+          const pMin = Math.min(curR, curG, curB);
+          const pDelta = pMax - pMin;
+
+          if (pDelta > 0) {
+            let pHue;
+            if (pMax === curR) {
+              pHue = ((curG - curB) / pDelta) % 6;
+            } else if (pMax === curG) {
+              pHue = (curB - curR) / pDelta + 2;
+            } else {
+              pHue = (curR - curG) / pDelta + 4;
+            }
+            pHue = pHue * 60;
+            if (pHue < 0) pHue += 360;
+
+            let hDiff = Math.abs(pHue - targetHue);
+            if (hDiff > 180) hDiff = 360 - hDiff;
+
+            if (hDiff < 70) {
+              let weight = 1.0;
+              if (hDiff > 35) {
+                weight = 0.5 * (1 + Math.cos(Math.PI * (hDiff - 35) / 35));
+              }
+
+              const l = (pMax + pMin) / 510;
+              let s = l > 0.5 ? pDelta / (510 - (pMax + pMin)) : pDelta / (pMax + pMin);
+
+              if (satFactor < 0) {
+                s = s * (1 + satFactor * weight);
+              } else {
+                s = s + (1 - s) * (satFactor * weight);
+              }
+              if (s < 0) s = 0;
+              else if (s > 1) s = 1;
+
+              if (s === 0) {
+                const gray = Math.round(l * 255);
+                data[i] = gray;
+                data[i + 1] = gray;
+                data[i + 2] = gray;
+              } else {
+                const c = (1 - Math.abs(2 * l - 1)) * s;
+                const x = c * (1 - Math.abs(((pHue / 60) % 2) - 1));
+                const m = l - c / 2;
+                let r1, g1, b1;
+                if (pHue < 60) {
+                  r1 = c; g1 = x; b1 = 0;
+                } else if (pHue < 120) {
+                  r1 = x; g1 = c; b1 = 0;
+                } else if (pHue < 180) {
+                  r1 = 0; g1 = c; b1 = x;
+                } else if (pHue < 240) {
+                  r1 = 0; g1 = x; b1 = c;
+                } else if (pHue < 300) {
+                  r1 = x; g1 = 0; b1 = c;
+                } else {
+                  r1 = c; g1 = 0; b1 = x;
+                }
+                data[i] = Math.round((r1 + m) * 255);
+                data[i + 1] = Math.round((g1 + m) * 255);
+                data[i + 2] = Math.round((b1 + m) * 255);
+              }
+            }
           }
         }
       }
@@ -1273,7 +1374,7 @@
     dom.rotationRange.value = layer.rotation;
 
     // Контроллеры хромакея
-    const ck = layer.chromaKey || { enabled: false, color: '#00ff00', tolerance: 40, feather: 15, spill: 50 };
+    const ck = layer.chromaKey || { enabled: false, color: '#00ff00', tolerance: 40, feather: 15, spill: 50, saturation: 0 };
     dom.chromaKeyEnabled.checked = !!ck.enabled;
     dom.chromaKeyControls.style.display = ck.enabled ? 'flex' : 'none';
     dom.chromaKeyColor.value = ck.color;
@@ -1284,6 +1385,11 @@
     dom.chromaFeatherValue.textContent = `${ck.feather}%`;
     dom.chromaSpill.value = ck.spill;
     dom.chromaSpillValue.textContent = `${ck.spill}%`;
+    const sat = typeof ck.saturation === 'number' ? ck.saturation : 0;
+    if (dom.chromaSaturation) {
+      dom.chromaSaturation.value = sat;
+      dom.chromaSaturationValue.textContent = sat > 0 ? `+${sat}%` : `${sat}%`;
+    }
     if (chromaBadge) chromaBadge.textContent = ck.enabled ? 'Вкл' : 'Выкл';
   }
 
@@ -1449,7 +1555,7 @@
       const layer = getSelectedLayer();
       if (!layer) return;
       if (!layer.chromaKey) {
-        layer.chromaKey = { enabled: true, color: hex, tolerance: 40, feather: 15, spill: 50 };
+        layer.chromaKey = { enabled: true, color: hex, tolerance: 40, feather: 15, spill: 50, saturation: 0 };
       }
       layer.chromaKey.color = hex;
       const rgb = hexToRgb(hex);
@@ -1469,7 +1575,7 @@
       const layer = getSelectedLayer();
       if (!layer) return;
       if (!layer.chromaKey) {
-        layer.chromaKey = { enabled: false, color: '#00ff00', tolerance: 40, feather: 15, spill: 50 };
+        layer.chromaKey = { enabled: false, color: '#00ff00', tolerance: 40, feather: 15, spill: 50, saturation: 0 };
         const rgb = hexToRgb('#00ff00');
         layer.chromaKey.targetR = rgb.r;
         layer.chromaKey.targetG = rgb.g;
@@ -1550,6 +1656,25 @@
       saveHistory('Изменено подавление каймы');
       updateLayersUI();
     });
+
+    // Насыщенность оттенка хромакея (Saturation / Hue Saturation)
+    if (dom.chromaSaturation) {
+      dom.chromaSaturation.addEventListener('input', (e) => {
+        const layer = getSelectedLayer();
+        if (!layer || !layer.chromaKey) return;
+        const val = Number(e.target.value);
+        layer.chromaKey.saturation = val;
+        dom.chromaSaturationValue.textContent = val > 0 ? `+${val}%` : `${val}%`;
+        if (layer.chromaKey.enabled) {
+          applyChromaKeyToLayer(layer);
+          render();
+        }
+      });
+      dom.chromaSaturation.addEventListener('change', () => {
+        saveHistory('Изменена насыщенность хромакея');
+        updateLayersUI();
+      });
+    }
 
     // Пипетка
     dom.btnChromaEyedropper.addEventListener('click', async () => {
@@ -1947,7 +2072,7 @@
       { name: 'Неоновое свечение (Alpha)', canvas: c1, x: 420, y: 360, opacity: 0.95, rot: 0, w: 340, h: 340, chroma: null },
       { name: 'Стеклянная плашка', canvas: c2, x: 640, y: 360, opacity: 0.85, rot: -6, w: 380, h: 220, chroma: null },
       { name: 'Золотая звезда', canvas: c3, x: 860, y: 220, opacity: 1.0, rot: 15, w: 180, h: 180, chroma: null },
-      { name: 'Ракета (Зеленый экран)', canvas: c4, x: 740, y: 440, opacity: 1.0, rot: 8, w: 220, h: 220, chroma: { enabled: true, color: '#00ff00', tolerance: 40, feather: 15, spill: 50 } }
+      { name: 'Ракета (Зеленый экран)', canvas: c4, x: 740, y: 440, opacity: 1.0, rot: 8, w: 220, h: 220, chroma: { enabled: true, color: '#00ff00', tolerance: 40, feather: 15, spill: 50, saturation: 0 } }
     ];
 
     let count = 0;
@@ -1980,7 +2105,8 @@
             targetB: 0,
             tolerance: d.chroma.tolerance,
             feather: d.chroma.feather,
-            spill: d.chroma.spill
+            spill: d.chroma.spill,
+            saturation: d.chroma.saturation || 0
           } : {
             enabled: false,
             color: '#00ff00',
@@ -1989,7 +2115,8 @@
             targetB: 0,
             tolerance: 40,
             feather: 15,
-            spill: 50
+            spill: 50,
+            saturation: 0
           },
           processedCanvas: null
         };
