@@ -60,8 +60,8 @@
 
   // --- Состояние приложения ---
   const state = {
-    canvasWidth: 1280,
-    canvasHeight: 720,
+    canvasWidth: 1920,
+    canvasHeight: 1080,
     canvasBg: 'transparent',
     customBgColor: '#ffffff',
     zoom: 1,
@@ -98,12 +98,15 @@
     btnLoadDemo: document.getElementById('btnLoadDemo'),
     emptyHint: document.getElementById('emptyStateHint'),
     
+
     // Toolbar
     btnUndo: document.getElementById('btnUndo'),
     btnRedo: document.getElementById('btnRedo'),
+    canvasPresetSelect: document.getElementById('canvasPresetSelect'),
     canvasWidthInput: document.getElementById('canvasWidthInput'),
     canvasHeightInput: document.getElementById('canvasHeightInput'),
     btnApplyCanvasSize: document.getElementById('btnApplyCanvasSize'),
+    btnFitCanvasToLayer: document.getElementById('btnFitCanvasToLayer'),
     canvasBgSelect: document.getElementById('canvasBgSelect'),
     canvasBgPicker: document.getElementById('canvasBgPicker'),
     btnZoomIn: document.getElementById('btnZoomIn'),
@@ -160,11 +163,15 @@
   const ctx = dom.canvas.getContext('2d');
 
   // --- Инициализация холста ---
-  function initCanvas() {
+  function initCanvas(refit = true) {
     dom.canvas.width = state.canvasWidth;
     dom.canvas.height = state.canvasHeight;
+    dom.canvasWidthInput.value = state.canvasWidth;
+    dom.canvasHeightInput.value = state.canvasHeight;
     updateCanvasWrapperStyle();
-    fitCanvasToViewport();
+    if (refit) {
+      fitCanvasToViewport();
+    }
     render();
   }
 
@@ -209,13 +216,13 @@
 
   function fitCanvasToViewport() {
     const viewportRect = dom.viewport.getBoundingClientRect();
-    const padding = 60;
+    const padding = 25;
     const availW = Math.max(viewportRect.width - padding * 2, 100);
     const availH = Math.max(viewportRect.height - padding * 2, 100);
 
     const scaleX = availW / state.canvasWidth;
     const scaleY = availH / state.canvasHeight;
-    const fitScale = Math.min(scaleX, scaleY, 1.0);
+    const fitScale = Math.min(scaleX, scaleY);
 
     state.zoom = fitScale;
     state.pan.x = (viewportRect.width - state.canvasWidth * state.zoom) / 2;
@@ -265,15 +272,15 @@
       selectedId: state.selectedId,
       canvasWidth: state.canvasWidth,
       canvasHeight: state.canvasHeight,
-      canvasBg: state.canvasBg
+      canvasBg: state.canvasBg,
+      pan: { ...state.pan }
     };
 
     state.history.push(snapshot);
     if (state.history.length > state.maxHistory) {
       state.history.shift();
-    } else {
-      state.historyIndex++;
     }
+    state.historyIndex = state.history.length - 1;
 
     updateUndoRedoButtons();
   }
@@ -308,6 +315,9 @@
     state.canvasWidth = snapshot.canvasWidth;
     state.canvasHeight = snapshot.canvasHeight;
     state.canvasBg = snapshot.canvasBg;
+    if (snapshot.pan) {
+      state.pan = { ...snapshot.pan };
+    }
 
     dom.canvas.width = state.canvasWidth;
     dom.canvas.height = state.canvasHeight;
@@ -315,7 +325,13 @@
     dom.canvasHeightInput.value = state.canvasHeight;
     dom.canvasBgSelect.value = state.canvasBg;
 
+    if (dom.canvasPresetSelect) {
+      const matchOpt = Array.from(dom.canvasPresetSelect.options).find(o => o.value === `${state.canvasWidth}x${state.canvasHeight}`);
+      dom.canvasPresetSelect.value = matchOpt ? matchOpt.value : 'custom';
+    }
+
     updateCanvasWrapperStyle();
+    applyTransform();
     updateLayersUI();
     updatePropertiesUI();
     render();
@@ -353,16 +369,27 @@
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          // Вычисляем оптимальный начальный размер в пределах холста
-          const maxInitialW = state.canvasWidth * 0.75;
-          const maxInitialH = state.canvasHeight * 0.75;
           let w = img.naturalWidth;
           let h = img.naturalHeight;
 
-          if (w > maxInitialW || h > maxInitialH) {
-            const scale = Math.min(maxInitialW / w, maxInitialH / h);
-            w = Math.round(w * scale);
-            h = Math.round(h * scale);
+          // Если это первое загружаемое изображение — автоматически адаптируем холст под его размер!
+          if (state.layers.length === 0 && index === 0 && (img.naturalWidth >= 200 || img.naturalHeight >= 200)) {
+            state.canvasWidth = img.naturalWidth;
+            state.canvasHeight = img.naturalHeight;
+            if (dom.canvasPresetSelect) dom.canvasPresetSelect.value = 'custom';
+            initCanvas(true);
+            w = img.naturalWidth;
+            h = img.naturalHeight;
+          } else {
+            // Вычисляем оптимальный начальный размер в пределах холста
+            const maxInitialW = state.canvasWidth * 0.85;
+            const maxInitialH = state.canvasHeight * 0.85;
+
+            if (w > maxInitialW || h > maxInitialH) {
+              const scale = Math.min(maxInitialW / w, maxInitialH / h);
+              w = Math.round(w * scale);
+              h = Math.round(h * scale);
+            }
           }
 
           // Небольшое смещение слоев, если загружено несколько одновременно
@@ -794,6 +821,10 @@
 
   // --- Обработчики взаимодействия с мышью/тачем ---
   dom.viewport.addEventListener('mousedown', (e) => {
+    if (document.activeElement && document.activeElement !== document.body) {
+      document.activeElement.blur();
+    }
+
     // Панорамирование по средней кнопке мыши или с зажатым пробелом
     if (e.button === 1 || state.interaction.isSpacePressed) {
       e.preventDefault();
@@ -847,6 +878,65 @@
 
   window.addEventListener('mousemove', (e) => {
     const inter = state.interaction;
+
+    // 0. Изменение размера холста интерактивно ручками со всех 4 углов и 4 сторон
+    if (inter.type === 'canvas-resize') {
+      const dx = (e.clientX - inter.startX) / state.zoom;
+      const dy = (e.clientY - inter.startY) / state.zoom;
+      const h = inter.canvasHandle;
+
+      let newW = inter.startW;
+      let newH = inter.startH;
+      let deltaW = 0;
+      let deltaH = 0;
+
+      // Горизонталь: правые ручки или левые ручки
+      if (['e', 'se', 'ne'].includes(h)) {
+        newW = Math.max(100, Math.min(8000, Math.round(inter.startW + dx)));
+      } else if (['w', 'sw', 'nw'].includes(h)) {
+        newW = Math.max(100, Math.min(8000, Math.round(inter.startW - dx)));
+        deltaW = newW - inter.startW;
+      }
+
+      // Вертикаль: нижние ручки или верхние ручки
+      if (['s', 'se', 'sw'].includes(h)) {
+        newH = Math.max(100, Math.min(8000, Math.round(inter.startH + dy)));
+      } else if (['n', 'nw', 'ne'].includes(h)) {
+        newH = Math.max(100, Math.min(8000, Math.round(inter.startH - dy)));
+        deltaH = newH - inter.startH;
+      }
+
+      state.canvasWidth = newW;
+      state.canvasHeight = newH;
+      dom.canvas.width = newW;
+      dom.canvas.height = newH;
+      dom.canvasWidthInput.value = newW;
+      dom.canvasHeightInput.value = newH;
+      if (dom.canvasPresetSelect) dom.canvasPresetSelect.value = 'custom';
+
+      // При растягивании сверху/слева компенсируем смещение панорамирования
+      // и сдвигаем координаты слоев, чтобы их визуальное положение на экране оставалось на месте
+      if (inter.startPanX !== undefined) {
+        state.pan.x = inter.startPanX - deltaW * state.zoom;
+        state.pan.y = inter.startPanY - deltaH * state.zoom;
+        applyTransform();
+      }
+
+      if (inter.layerStartPositions) {
+        inter.layerStartPositions.forEach(item => {
+          const layer = state.layers.find(l => l.id === item.id);
+          if (layer) {
+            layer.x = Math.round(item.x + deltaW);
+            layer.y = Math.round(item.y + deltaH);
+          }
+        });
+      }
+
+      updateCanvasWrapperStyle();
+      updatePropertiesUI(false);
+      render();
+      return;
+    }
 
     // 1. Панорамирование экрана
     if (inter.type === 'pan') {
@@ -1008,6 +1098,8 @@
     if (state.interaction.type !== 'none') {
       if (['move', 'resize', 'rotate'].includes(state.interaction.type)) {
         saveHistory('Трансформация слоя');
+      } else if (state.interaction.type === 'canvas-resize') {
+        saveHistory('Изменен размер холста');
       }
       state.interaction.type = 'none';
       state.interaction.handle = null;
@@ -1025,39 +1117,74 @@
 
   // Клавиатурные сокращения
   window.addEventListener('keydown', (e) => {
-    // Игнорируем нажатия, если пользователь вводит текст в input
-    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+    const active = document.activeElement;
+    const isTextInput = active && (
+      active.tagName === 'TEXTAREA' ||
+      (active.tagName === 'INPUT' && ['text', 'search'].includes(active.type))
+    );
+
+    // 1. Undo / Redo / Duplicate (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Ctrl+D)
+    // Надежно работает при любой раскладке клавиатуры (RU / EN / e.code / e.key)
+    if (e.ctrlKey || e.metaKey) {
+      const isZ = e.code === 'KeyZ' || e.key === 'z' || e.key === 'Z' || e.key === 'я' || e.key === 'Я';
+      const isY = e.code === 'KeyY' || e.key === 'y' || e.key === 'Y' || e.key === 'н' || e.key === 'Н';
+      const isD = e.code === 'KeyD' || e.key === 'd' || e.key === 'D' || e.key === 'в' || e.key === 'В';
+
+      if (isZ) {
+        if (!isTextInput) {
+          e.preventDefault();
+          if (e.shiftKey) {
+            redo();
+          } else {
+            undo();
+          }
+          return;
+        }
+      } else if (isY) {
+        if (!isTextInput) {
+          e.preventDefault();
+          redo();
+          return;
+        }
+      } else if (isD) {
+        if (!isTextInput) {
+          e.preventDefault();
+          duplicateSelectedLayer();
+          return;
+        }
+      }
+    }
+
+    // Если сейчас редактируется текст в текстовом поле input/textarea:
+    // даем пользователю вводить текст, Enter/Escape снимают фокус
+    if (isTextInput) {
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        active.blur();
+      }
       return;
     }
 
-    // Пробел для панорамирования
+    // 2. Escape — снять выделение со слоя
+    if (e.key === 'Escape') {
+      if (active && active.blur) active.blur();
+      selectLayer(null);
+      return;
+    }
+
+    // 3. Пробел для панорамирования холста
     if (e.code === 'Space' && !state.interaction.isSpacePressed) {
       state.interaction.isSpacePressed = true;
       dom.viewport.style.cursor = 'grab';
     }
 
-    // Удаление (Delete / Backspace)
+    // 4. Удаление (Delete / Backspace)
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       deleteSelectedLayer();
+      return;
     }
 
-    // Undo / Redo (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)
-    if (e.ctrlKey || e.metaKey) {
-      if (e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-      } else if (e.key.toLowerCase() === 'y') {
-        e.preventDefault();
-        redo();
-      } else if (e.key.toLowerCase() === 'd') {
-        e.preventDefault();
-        duplicateSelectedLayer();
-      }
-    }
-
-    // Стрелочки для перемещения выделенного слоя (по 1px или 10px с Shift)
+    // 5. Стрелочки для перемещения выделенного слоя (по 1px или 10px с Shift)
     const selected = getSelectedLayer();
     if (selected && !selected.locked && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
       e.preventDefault();
@@ -1105,17 +1232,28 @@
   // --- Обновление UI Свойств выбранного слоя ---
   function updatePropertiesUI(full = true) {
     const layer = getSelectedLayer();
+    const chromaNotice = document.getElementById('chromaNoLayerNotice');
+    const chromaBadge = document.getElementById('chromaStatusBadge');
 
     if (!layer) {
       dom.layerPropsContent.style.display = 'none';
       dom.noLayerSelectedNotice.style.display = 'block';
       dom.activeLayerNameBadge.textContent = 'Слой не выбран';
+      if (chromaNotice) chromaNotice.style.display = 'block';
+      if (dom.chromaKeyControls) dom.chromaKeyControls.style.display = 'none';
+      if (dom.chromaKeyEnabled) {
+        dom.chromaKeyEnabled.checked = false;
+        dom.chromaKeyEnabled.disabled = true;
+      }
+      if (chromaBadge) chromaBadge.textContent = 'Выкл';
       return;
     }
 
     dom.layerPropsContent.style.display = 'flex';
     dom.noLayerSelectedNotice.style.display = 'none';
     dom.activeLayerNameBadge.textContent = layer.name;
+    if (chromaNotice) chromaNotice.style.display = 'none';
+    if (dom.chromaKeyEnabled) dom.chromaKeyEnabled.disabled = false;
 
     // Значения
     dom.opacityRange.value = Math.round(layer.opacity * 100);
@@ -1140,6 +1278,7 @@
     dom.chromaFeatherValue.textContent = `${ck.feather}%`;
     dom.chromaSpill.value = ck.spill;
     dom.chromaSpillValue.textContent = `${ck.spill}%`;
+    if (chromaBadge) chromaBadge.textContent = ck.enabled ? 'Вкл' : 'Выкл';
   }
 
   // --- Обновление Списка слоев (UI) ---
@@ -1332,6 +1471,8 @@
       }
       layer.chromaKey.enabled = e.target.checked;
       dom.chromaKeyControls.style.display = layer.chromaKey.enabled ? 'flex' : 'none';
+      const chromaBadge = document.getElementById('chromaStatusBadge');
+      if (chromaBadge) chromaBadge.textContent = layer.chromaKey.enabled ? 'Вкл' : 'Выкл';
       applyChromaKeyToLayer(layer);
       saveHistory(layer.chromaKey.enabled ? 'Включен хромакей' : 'Выключен хромакей');
       render();
@@ -1597,17 +1738,51 @@
     dom.btnUndo.addEventListener('click', undo);
     dom.btnRedo.addEventListener('click', redo);
 
-    // Размер холста
+    // Пресеты размеров холста
+    if (dom.canvasPresetSelect) {
+      dom.canvasPresetSelect.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val === 'custom') return;
+        const [w, h] = val.split('x').map(Number);
+        if (w && h) {
+          state.canvasWidth = w;
+          state.canvasHeight = h;
+          initCanvas(true);
+          saveHistory(`Размер холста: ${val}`);
+        }
+      });
+    }
+
+    // Применить размер кнопкой ОК
     dom.btnApplyCanvasSize.addEventListener('click', () => {
       const w = parseInt(dom.canvasWidthInput.value, 10);
       const h = parseInt(dom.canvasHeightInput.value, 10);
       if (w >= 100 && h >= 100 && w <= 8000 && h <= 8000) {
         state.canvasWidth = w;
         state.canvasHeight = h;
-        initCanvas();
+        if (dom.canvasPresetSelect) dom.canvasPresetSelect.value = 'custom';
+        initCanvas(true);
         saveHistory('Изменен размер холста');
       }
     });
+
+    // Подогнать холст под выбранный слой
+    if (dom.btnFitCanvasToLayer) {
+      dom.btnFitCanvasToLayer.addEventListener('click', () => {
+        const layer = getSelectedLayer();
+        if (!layer) {
+          alert('Сначала выберите слой на холсте!');
+          return;
+        }
+        state.canvasWidth = layer.width;
+        state.canvasHeight = layer.height;
+        layer.x = Math.round(layer.width / 2);
+        layer.y = Math.round(layer.height / 2);
+        if (dom.canvasPresetSelect) dom.canvasPresetSelect.value = 'custom';
+        initCanvas(true);
+        saveHistory('Холст подогнан под слой');
+      });
+    }
 
     // Фон холста
     dom.canvasBgSelect.addEventListener('change', (e) => {
@@ -1694,7 +1869,7 @@
     ctx2.fillStyle = '#ffffff';
     ctx2.font = 'bold 22px Inter, sans-serif';
     ctx2.textAlign = 'center';
-    ctx2.fillText('ImageLayer Studio', 190, 105);
+    ctx2.fillText('Blin Image Studio', 190, 105);
     ctx2.fillStyle = 'rgba(255, 255, 255, 0.75)';
     ctx2.font = '13px Inter, sans-serif';
     ctx2.fillText('Слои • Прозрачность • Трансформация', 190, 140);
@@ -1890,11 +2065,151 @@
     }, mime, quality);
   }
 
+  // --- Настройка интерактивных ручек ресайза холста (8 ручек: 4 угла + 4 стороны) ---
+  function setupCanvasResizers() {
+    const cursorMap = {
+      'nw': 'nwse-resize',
+      'ne': 'nesw-resize',
+      'se': 'nwse-resize',
+      'sw': 'nesw-resize',
+      'n':  'ns-resize',
+      's':  'ns-resize',
+      'w':  'ew-resize',
+      'e':  'ew-resize'
+    };
+
+    const startResize = (e, handle) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      state.interaction.type = 'canvas-resize';
+      state.interaction.canvasHandle = handle;
+      state.interaction.startX = e.clientX;
+      state.interaction.startY = e.clientY;
+      state.interaction.startW = state.canvasWidth;
+      state.interaction.startH = state.canvasHeight;
+      state.interaction.startPanX = state.pan.x;
+      state.interaction.startPanY = state.pan.y;
+      state.interaction.layerStartPositions = state.layers.map(l => ({ id: l.id, x: l.x, y: l.y }));
+
+      dom.viewport.style.cursor = cursorMap[handle] || 'crosshair';
+    };
+
+    document.querySelectorAll('.canvas-resize-handle').forEach(el => {
+      const handle = el.dataset.handle;
+      if (handle) {
+        el.addEventListener('mousedown', (e) => startResize(e, handle));
+      }
+    });
+  }
+
+  // --- Интерактивное изменение ширины панели и высоты блоков свойств мышкой ---
+  function setupPanelResizers() {
+    const sidebar = document.getElementById('sidebarPanel');
+    const sidebarResizer = document.getElementById('sidebarResizer');
+    const resizerPropsToChroma = document.getElementById('resizerPropsToChroma');
+    const resizerChromaToLayers = document.getElementById('resizerChromaToLayers');
+
+    const secProps = document.getElementById('layerPropsSection');
+    const secChroma = document.getElementById('chromaKeySection');
+    const secLayers = document.getElementById('layersSection');
+
+    // 1. Изменение ширины боковой панели (горизонтальное перетаскивание)
+    if (sidebar && sidebarResizer) {
+      let isDraggingSidebar = false;
+      let startX = 0;
+      let startWidth = 0;
+
+      sidebarResizer.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        isDraggingSidebar = true;
+        startX = e.clientX;
+        startWidth = sidebar.offsetWidth;
+        document.body.classList.add('resizing-col');
+        sidebarResizer.classList.add('active');
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDraggingSidebar) return;
+        const deltaX = startX - e.clientX;
+        const maxW = Math.max(300, window.innerWidth - 300);
+        const newWidth = Math.max(260, Math.min(maxW, startWidth + deltaX));
+        sidebar.style.width = `${newWidth}px`;
+        applyTransform();
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isDraggingSidebar) {
+          isDraggingSidebar = false;
+          document.body.classList.remove('resizing-col');
+          sidebarResizer.classList.remove('active');
+          applyTransform();
+        }
+      });
+    }
+
+    // 2. Вспомогательная функция для вертикального изменения высоты между секциями
+    function makeVerticalResizer(handle, upperSec, lowerSec) {
+      if (!handle || !upperSec || !lowerSec) return;
+
+      let isDragging = false;
+      let startY = 0;
+      let startUpperH = 0;
+      let startLowerH = 0;
+
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        isDragging = true;
+        startY = e.clientY;
+        startUpperH = upperSec.getBoundingClientRect().height;
+        startLowerH = lowerSec.getBoundingClientRect().height;
+        document.body.classList.add('resizing-row');
+        handle.classList.add('active');
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const deltaY = e.clientY - startY;
+        const minH = 48; // минимальная высота
+
+        const newUpperH = Math.max(minH, startUpperH + deltaY);
+        const newLowerH = Math.max(minH, startLowerH - deltaY);
+
+        upperSec.style.flex = `0 0 ${newUpperH}px`;
+        upperSec.style.height = `${newUpperH}px`;
+        lowerSec.style.flex = `0 0 ${newLowerH}px`;
+        lowerSec.style.height = `${newLowerH}px`;
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          document.body.classList.remove('resizing-row');
+          handle.classList.remove('active');
+        }
+      });
+    }
+
+    // Ресайзер между Свойствами слоя и Хромакеем
+    if (resizerPropsToChroma && secProps && secChroma) {
+      makeVerticalResizer(resizerPropsToChroma, secProps, secChroma);
+    }
+
+    // Ресайзер между Хромакеем и Слоями
+    if (resizerChromaToLayers && secChroma && secLayers) {
+      makeVerticalResizer(resizerChromaToLayers, secChroma, secLayers);
+    }
+  }
+
   // --- Запуск приложения ---
   function start() {
     initCanvas();
     bindToolbarEvents();
     bindPropertyEvents();
+    setupCanvasResizers();
+    setupPanelResizers();
     saveHistory('Начальное состояние');
 
     // Адаптация при ресайзе окна

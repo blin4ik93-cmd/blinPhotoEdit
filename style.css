@@ -31,6 +31,10 @@
   user-select: none;
 }
 
+input, select, textarea {
+  user-select: text;
+}
+
 body {
   font-family: var(--font-family);
   background-color: var(--bg-darkest);
@@ -49,17 +53,46 @@ body {
   width: 100vw;
 }
 
-/* ================== ВЕРХНЯЯ ПАНЕЛЬ (TOOLBAR) ================== */
+/* ================== ВЕРХНЯЯ ПАНЕЛЬ (TOOLBAR - 2 СТРОКИ) ================== */
 .top-toolbar {
-  height: 52px;
+  display: flex;
+  flex-direction: column;
   background-color: var(--bg-darker);
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.toolbar-row {
   display: flex;
   align-items: center;
   padding: 0 14px;
   gap: 12px;
-  flex-shrink: 0;
-  z-index: 100;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.toolbar-row::-webkit-scrollbar {
+  height: 3px;
+}
+.toolbar-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+.toolbar-row::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.toolbar-row-top {
+  height: 44px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.toolbar-row-bottom {
+  height: 38px;
+  background-color: rgba(0, 0, 0, 0.14);
 }
 
 .brand {
@@ -70,6 +103,7 @@ body {
   font-size: 14px;
   letter-spacing: -0.2px;
   color: #fff;
+  flex-shrink: 0;
 }
 
 .logo-icon {
@@ -85,19 +119,25 @@ body {
 
 .toolbar-separator {
   width: 1px;
-  height: 24px;
+  height: 20px;
   background-color: var(--border-color);
-  margin: 0 4px;
+  margin: 0 2px;
+  flex-shrink: 0;
 }
 
 .toolbar-group {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .toolbar-group-right {
   margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .toolbar-label {
@@ -323,6 +363,110 @@ body {
   touch-action: none;
 }
 
+/* Интерактивные ручки изменения размера холста (8 ручек: 4 угла + 4 стороны) */
+.canvas-resize-handle {
+  position: absolute;
+  z-index: 25;
+  background-color: var(--accent-primary);
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.6);
+  transition: transform 0.12s ease, background-color 0.12s ease, box-shadow 0.12s ease;
+  user-select: none;
+}
+
+/* 4 Угловые ручки */
+.canvas-corner-handle {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.canvas-corner-handle.handle-nw {
+  top: -7px;
+  left: -7px;
+  cursor: nwse-resize;
+}
+
+.canvas-corner-handle.handle-ne {
+  top: -7px;
+  right: -7px;
+  cursor: nesw-resize;
+}
+
+.canvas-corner-handle.handle-se {
+  bottom: -7px;
+  right: -7px;
+  cursor: nwse-resize;
+}
+
+.canvas-corner-handle.handle-sw {
+  bottom: -7px;
+  left: -7px;
+  cursor: nesw-resize;
+}
+
+/* 4 Ручки посередине краев */
+.canvas-edge-handle.handle-n {
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26px;
+  height: 10px;
+  border-radius: 4px;
+  cursor: ns-resize;
+}
+
+.canvas-edge-handle.handle-s {
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26px;
+  height: 10px;
+  border-radius: 4px;
+  cursor: ns-resize;
+}
+
+.canvas-edge-handle.handle-w {
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 26px;
+  border-radius: 4px;
+  cursor: ew-resize;
+}
+
+.canvas-edge-handle.handle-e {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 26px;
+  border-radius: 4px;
+  cursor: ew-resize;
+}
+
+/* Hover-эффекты */
+.canvas-corner-handle:hover {
+  transform: scale(1.35);
+  background-color: var(--accent-primary-hover);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.9);
+}
+
+.canvas-edge-handle.handle-n:hover,
+.canvas-edge-handle.handle-s:hover {
+  transform: translateX(-50%) scale(1.25);
+  background-color: var(--accent-primary-hover);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.9);
+}
+
+.canvas-edge-handle.handle-w:hover,
+.canvas-edge-handle.handle-e:hover {
+  transform: translateY(-50%) scale(1.25);
+  background-color: var(--accent-primary-hover);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.9);
+}
+
 /* Инфо-строка внизу холста */
 .viewport-statusbar {
   position: absolute;
@@ -399,22 +543,139 @@ body {
   transform: scale(1.02);
 }
 
+/* ================== РАЗДЕЛИТЕЛЬ ДЛЯ ИЗМЕНЕНИЯ ШИРИНЫ (RESIZER) ================== */
+.sidebar-resizer {
+  width: 6px;
+  background-color: var(--border-color);
+  cursor: col-resize;
+  flex-shrink: 0;
+  position: relative;
+  transition: background-color 0.15s, box-shadow 0.15s;
+  z-index: 55;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer.active {
+  background-color: var(--accent-primary);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+}
+
 /* ================== БОКОВАЯ ПАНЕЛЬ (SIDEBAR) ================== */
 .sidebar-panel {
-  width: 320px;
+  width: 330px;
+  min-width: 260px;
+  max-width: 650px;
   background-color: var(--bg-darker);
-  border-left: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   z-index: 50;
   flex-shrink: 0;
+  height: 100%;
+}
+
+/* Секции внутри сайдбара */
+.resizable-section {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  min-height: 48px;
+}
+
+.resizable-section::-webkit-scrollbar {
+  width: 5px;
+}
+.resizable-section::-webkit-scrollbar-track {
+  background: transparent;
+}
+.resizable-section::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+.resizable-section::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+#layerPropsSection {
+  flex: 1 1 320px;
+  min-height: 100px;
+}
+
+#chromaKeySection {
+  flex: 0 0 auto;
+  min-height: 48px;
+  max-height: 380px;
+}
+
+#layersSection {
+  flex: 1 1 240px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Горизонтальные разделители между блоками свойств */
+.section-resizer {
+  height: 7px;
+  background-color: var(--bg-darkest);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  cursor: row-resize;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: background-color 0.15s, border-color 0.15s;
+  user-select: none;
+}
+
+.section-resizer .resizer-grip {
+  width: 32px;
+  height: 2px;
+  background-color: #4b5262;
+  border-radius: 2px;
+  transition: all 0.15s;
+}
+
+.section-resizer:hover,
+.section-resizer.active {
+  background-color: rgba(59, 130, 246, 0.25);
+  border-color: var(--accent-primary);
+}
+
+.section-resizer:hover .resizer-grip,
+.section-resizer.active .resizer-grip {
+  background-color: var(--accent-primary);
+  width: 50px;
+}
+
+/* Глобальные стили при активном драге мыши */
+body.resizing-col,
+body.resizing-col * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+body.resizing-row,
+body.resizing-row * {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
+
+.section-title-with-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .panel-section {
   display: flex;
   flex-direction: column;
-  border-bottom: 1px solid var(--border-color);
   padding: 14px;
 }
 
@@ -631,11 +892,11 @@ body {
 
 /* ================== СПИСОК СЛОЕВ ================== */
 .layers-section {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  padding-bottom: 8px;
+  flex-shrink: 0;
+  min-height: 180px;
+  padding-bottom: 14px;
 }
 
 .layer-order-actions {
@@ -644,13 +905,13 @@ body {
 }
 
 .layers-list {
-  flex: 1;
+  max-height: 260px;
+  min-height: 90px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding-right: 2px;
-  min-height: 120px;
 }
 
 /* Полоса прокрутки */
@@ -790,3 +1051,31 @@ body {
   flex: 1;
   margin-right: 8px;
 }
+
+/* ================== АДАПТИВНОСТЬ ВЕРХНЕЙ ПАНЕЛИ ================== */
+/* ================== АДАПТИВНОСТЬ ВЕРХНЕЙ ПАНЕЛИ ================== */
+@media (max-width: 900px) {
+  .logo-title {
+    display: none;
+  }
+  .toolbar-label {
+    display: none;
+  }
+  #btnFitCanvasToLayer {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  #btnLoadDemo span {
+    display: none;
+  }
+  #btnZoomFit,
+  #btnZoom100 {
+    display: none;
+  }
+  #canvasPresetSelect {
+    max-width: 110px;
+  }
+}
+

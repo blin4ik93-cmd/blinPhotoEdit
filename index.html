@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Редактор Изображений | Слои, Прозрачность и Трансформация</title>
+  <title>Blin Image Studio | Редактор Изображений</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,105 +11,125 @@
 </head>
 <body>
   <div class="app-container">
-    <!-- Верхняя панель (Toolbar) -->
+    <!-- Верхняя панель (Toolbar - 2 ряда) -->
     <header class="top-toolbar">
-      <div class="brand">
-        <div class="logo-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
-          </svg>
+      <!-- Верхний ряд (Ряд 1): Бренд, Добавление фото, История и Экспорт -->
+      <div class="toolbar-row toolbar-row-top">
+        <div class="brand">
+          <div class="logo-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </div>
+          <span class="logo-title">Blin Image Studio</span>
         </div>
-        <span class="logo-title">ImageLayer Studio</span>
-      </div>
 
-      <div class="toolbar-separator"></div>
+        <div class="toolbar-separator"></div>
 
-      <!-- Кнопки добавления изображений -->
-      <div class="toolbar-group">
-        <label class="btn btn-primary" title="Добавить одно или несколько изображений">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          <span>Добавить фото</span>
-          <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
-        </label>
-        <button id="btnLoadDemo" class="btn btn-secondary" title="Загрузить тестовые изображения с прозрачностью для быстрой пробы">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-          </svg>
-          <span>Демо</span>
-        </button>
-      </div>
-
-      <!-- История (Undo/Redo) -->
-      <div class="toolbar-group">
-        <button id="btnUndo" class="btn btn-icon" title="Отменить (Ctrl+Z)" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 7v6h6"></path>
-            <path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"></path>
-          </svg>
-        </button>
-        <button id="btnRedo" class="btn btn-icon" title="Повторить (Ctrl+Y)" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 7v6h-6"></path>
-            <path d="M3 17a9 9 0 019-9 9 9 0 016 2.3l3 2.7"></path>
-          </svg>
-        </button>
-      </div>
-
-      <div class="toolbar-separator"></div>
-
-      <!-- Управление холстом (размер) -->
-      <div class="toolbar-group canvas-settings">
-        <span class="toolbar-label">Холст:</span>
-        <div class="input-with-unit">
-          <input type="number" id="canvasWidthInput" value="1280" min="100" max="8000" step="10">
-          <span class="unit">Ш</span>
+        <!-- Кнопки добавления изображений -->
+        <div class="toolbar-group">
+          <label class="btn btn-primary" title="Добавить одно или несколько изображений">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Добавить фото</span>
+            <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
+          </label>
+          <button id="btnLoadDemo" class="btn btn-secondary" title="Загрузить тестовые изображения с прозрачностью для быстрой пробы">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+            <span>Демо</span>
+          </button>
         </div>
-        <span class="dim-separator">×</span>
-        <div class="input-with-unit">
-          <input type="number" id="canvasHeightInput" value="720" min="100" max="8000" step="10">
-          <span class="unit">В</span>
+
+        <div class="toolbar-separator"></div>
+
+        <!-- История (Undo/Redo) -->
+        <div class="toolbar-group">
+          <button id="btnUndo" class="btn btn-icon" title="Отменить (Ctrl+Z)" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 7v6h6"></path>
+              <path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"></path>
+            </svg>
+          </button>
+          <button id="btnRedo" class="btn btn-icon" title="Повторить (Ctrl+Y)" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 7v6h-6"></path>
+              <path d="M3 17a9 9 0 019-9 9 9 0 016 2.3l3 2.7"></path>
+            </svg>
+          </button>
         </div>
-        <button id="btnApplyCanvasSize" class="btn btn-small" title="Применить размер">ОК</button>
+
+        <!-- Экспорт (Справа в верхнем ряду - всегда свободен) -->
+        <div class="toolbar-group toolbar-group-right">
+          <button id="btnExportPng" class="btn btn-success" title="Скачать как PNG с сохранением прозрачности">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Экспорт PNG</span>
+          </button>
+          <button id="btnExportJpg" class="btn btn-secondary" title="Скачать как JPG">JPG</button>
+        </div>
       </div>
 
-      <!-- Цвет фона холста -->
-      <div class="toolbar-group">
-        <span class="toolbar-label">Фон:</span>
-        <select id="canvasBgSelect" class="form-select">
-          <option value="transparent">Прозрачный (Шахматка)</option>
-          <option value="#ffffff">Белый</option>
-          <option value="#000000">Черный</option>
-          <option value="#1e1e24">Темно-серый</option>
-          <option value="custom">Свой цвет...</option>
-        </select>
-        <input type="color" id="canvasBgPicker" value="#ffffff" style="display:none; width: 28px; height: 28px; border:none; border-radius:4px; cursor:pointer;">
-      </div>
+      <!-- Нижний ряд (Ряд 2): Холст, Цвет фона и Зум -->
+      <div class="toolbar-row toolbar-row-bottom">
+        <!-- Управление холстом (размер и пресеты) -->
+        <div class="toolbar-group canvas-settings">
+          <span class="toolbar-label">Холст:</span>
+          <select id="canvasPresetSelect" class="form-select">
+            <option value="1920x1080" selected>Full HD (1920 × 1080)</option>
+            <option value="2560x1440">2K QHD (2560 × 1440)</option>
+            <option value="3840x2160">4K UHD (3840 × 2160)</option>
+            <option value="1280x720">HD (1280 × 720)</option>
+            <option value="1080x1080">Квадрат (1080 × 1080)</option>
+            <option value="1080x1920">Вертикальный (1080 × 1920)</option>
+            <option value="custom">Свой размер...</option>
+          </select>
+          <div class="input-with-unit">
+            <input type="number" id="canvasWidthInput" value="1920" min="100" max="8000" step="10">
+            <span class="unit">Ш</span>
+          </div>
+          <span class="dim-separator">×</span>
+          <div class="input-with-unit">
+            <input type="number" id="canvasHeightInput" value="1080" min="100" max="8000" step="10">
+            <span class="unit">В</span>
+          </div>
+          <button id="btnApplyCanvasSize" class="btn btn-small" title="Применить размер">ОК</button>
+          <button id="btnFitCanvasToLayer" class="btn btn-secondary btn-small" title="Установить размер холста равным размеру выбранного слоя">По слою</button>
+        </div>
 
-      <!-- Зум -->
-      <div class="toolbar-group zoom-controls">
-        <button id="btnZoomOut" class="btn btn-icon btn-small" title="Уменьшить">−</button>
-        <span id="zoomLevelDisplay" class="zoom-display">100%</span>
-        <button id="btnZoomIn" class="btn btn-icon btn-small" title="Увеличить">+</button>
-        <button id="btnZoomFit" class="btn btn-small" title="Вписать в экран">Вписать</button>
-        <button id="btnZoom100" class="btn btn-small" title="100% масштаб">1:1</button>
-      </div>
+        <div class="toolbar-separator"></div>
 
-      <!-- Экспорт -->
-      <div class="toolbar-group toolbar-group-right">
-        <button id="btnExportPng" class="btn btn-success" title="Скачать как PNG с сохранением прозрачности">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span>Экспорт PNG</span>
-        </button>
-        <button id="btnExportJpg" class="btn btn-secondary" title="Скачать как JPG">JPG</button>
+        <!-- Цвет фона холста -->
+        <div class="toolbar-group">
+          <span class="toolbar-label">Фон:</span>
+          <select id="canvasBgSelect" class="form-select">
+            <option value="transparent">Прозрачный (Шахматка)</option>
+            <option value="#ffffff">Белый</option>
+            <option value="#000000">Черный</option>
+            <option value="#1e1e24">Темно-серый</option>
+            <option value="custom">Свой цвет...</option>
+          </select>
+          <input type="color" id="canvasBgPicker" value="#ffffff" style="display:none; width: 28px; height: 28px; border:none; border-radius:4px; cursor:pointer;">
+        </div>
+
+        <div class="toolbar-separator"></div>
+
+        <!-- Зум -->
+        <div class="toolbar-group zoom-controls">
+          <button id="btnZoomOut" class="btn btn-icon btn-small" title="Уменьшить">−</button>
+          <span id="zoomLevelDisplay" class="zoom-display">100%</span>
+          <button id="btnZoomIn" class="btn btn-icon btn-small" title="Увеличить">+</button>
+          <button id="btnZoomFit" class="btn btn-small" title="Вписать в экран">Вписать</button>
+          <button id="btnZoom100" class="btn btn-small" title="100% масштаб">1:1</button>
+        </div>
       </div>
     </header>
 
@@ -119,6 +139,18 @@
       <main class="canvas-viewport" id="canvasViewport">
         <div class="canvas-wrapper" id="canvasWrapper">
           <canvas id="mainCanvas"></canvas>
+          <!-- Интерактивные ручки изменения размера холста (со всех 4 углов и 4 сторон) -->
+          <!-- 4 Угла -->
+          <div class="canvas-resize-handle canvas-corner-handle handle-nw" data-handle="nw" title="Потяните для изменения размера холста (Верх-Лево)"></div>
+          <div class="canvas-resize-handle canvas-corner-handle handle-ne" data-handle="ne" title="Потяните для изменения размера холста (Верх-Право)"></div>
+          <div class="canvas-resize-handle canvas-corner-handle handle-se" data-handle="se" title="Потяните для изменения размера холста (Низ-Право)"></div>
+          <div class="canvas-resize-handle canvas-corner-handle handle-sw" data-handle="sw" title="Потяните для изменения размера холста (Низ-Лево)"></div>
+
+          <!-- 4 Середины сторон -->
+          <div class="canvas-resize-handle canvas-edge-handle handle-n" data-handle="n" title="Потяните для изменения высоты холста сверху"></div>
+          <div class="canvas-resize-handle canvas-edge-handle handle-e" data-handle="e" title="Потяните для изменения ширины холста справа"></div>
+          <div class="canvas-resize-handle canvas-edge-handle handle-s" data-handle="s" title="Потяните для изменения высоты холста снизу"></div>
+          <div class="canvas-resize-handle canvas-edge-handle handle-w" data-handle="w" title="Потяните для изменения ширины холста слева"></div>
         </div>
 
         <!-- Подсказка / Dropzone оверлей -->
@@ -142,17 +174,22 @@
         </div>
       </main>
 
-      <!-- Правая панель: Свойства и Слои -->
-      <aside class="sidebar-panel">
-        <!-- Секция: Свойства активного слоя -->
-        <div class="panel-section" id="layerPropsSection">
+      <!-- Вертикальный разделитель: изменение ширины боковой панели мышкой -->
+      <div class="sidebar-resizer" id="sidebarResizer" title="Потяните влево / вправо для изменения ширины панели свойств"></div>
+
+      <!-- Правая панель: Свойства, Хромакей и Слои -->
+      <aside class="sidebar-panel" id="sidebarPanel">
+        <!-- Секция 1: Свойства слоя (Трансформации, непрозрачность, наложение) -->
+        <div class="panel-section resizable-section" id="layerPropsSection">
           <div class="section-header">
             <span class="section-title">Свойства слоя</span>
-            <span id="activeLayerNameBadge" class="layer-badge">Слой не выбран</span>
+            <div class="header-right-badges">
+              <span id="activeLayerNameBadge" class="layer-badge">Слой не выбран</span>
+            </div>
           </div>
 
           <div id="noLayerSelectedNotice" class="no-selection-notice">
-            Выберите слой на холсте или в списке ниже
+            Выберите слой на холсте или в списке слоев
           </div>
 
           <div id="layerPropsContent" class="props-content" style="display: none;">
@@ -189,73 +226,6 @@
                 <option value="color">Цветность (Color)</option>
                 <option value="luminosity">Яркость (Luminosity)</option>
               </select>
-            </div>
-
-            <!-- Хромакей (Удаление зеленого фона) -->
-            <div class="chromakey-box">
-              <div class="chromakey-header">
-                <label class="checkbox-container">
-                  <input type="checkbox" id="chromaKeyEnabled">
-                  <span class="checkbox-custom"></span>
-                  <span class="chromakey-title">Хромакей (удаление фона)</span>
-                </label>
-              </div>
-
-              <div id="chromaKeyControls" class="chromakey-controls" style="display: none;">
-                <!-- Выбор цвета -->
-                <div class="chromakey-row">
-                  <span class="prop-caption">Цвет фона:</span>
-                  <div class="color-picker-wrapper">
-                    <input type="color" id="chromaKeyColor" value="#00ff00" class="color-picker-input">
-                    <span id="chromaKeyHex" class="color-hex-label">#00FF00</span>
-                  </div>
-                  <!-- Пипетка -->
-                  <button id="btnChromaEyedropper" class="btn btn-secondary btn-small" title="Выбрать цвет пипеткой на холсте">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M19 11l-8-8-8.5 8.5a2.12 2.12 0 0 0 0 3l2.5 2.5a2.12 2.12 0 0 0 3 0L19 11z"></path>
-                      <path d="M5 19l-3 3"></path>
-                      <path d="M14 6l4 4"></path>
-                    </svg>
-                    Пипетка
-                  </button>
-                </div>
-
-                <!-- Быстрые пресеты цветов -->
-                <div class="chromakey-presets">
-                  <button type="button" class="preset-color-dot" data-color="#00ff00" style="background:#00ff00;" title="Зеленый (Green Screen)"></button>
-                  <button type="button" class="preset-color-dot" data-color="#00ffff" style="background:#00ffff;" title="Бирюзовый"></button>
-                  <button type="button" class="preset-color-dot" data-color="#0000ff" style="background:#0000ff;" title="Синий (Blue Screen)"></button>
-                  <button type="button" class="preset-color-dot" data-color="#ffffff" style="background:#ffffff;" title="Белый"></button>
-                  <button type="button" class="preset-color-dot" data-color="#000000" style="background:#000000;" title="Черный"></button>
-                </div>
-
-                <!-- Порог схожести (Threshold / Similarity) -->
-                <div class="prop-group">
-                  <div class="prop-label-row">
-                    <label for="chromaTolerance">Порог схожести</label>
-                    <span id="chromaToleranceValue" class="unit-val">40%</span>
-                  </div>
-                  <input type="range" id="chromaTolerance" min="1" max="100" value="40" class="styled-slider">
-                </div>
-
-                <!-- Мягкость краев (Smoothness / Feather) -->
-                <div class="prop-group">
-                  <div class="prop-label-row">
-                    <label for="chromaFeather">Сглаживание краев</label>
-                    <span id="chromaFeatherValue" class="unit-val">15%</span>
-                  </div>
-                  <input type="range" id="chromaFeather" min="0" max="60" value="15" class="styled-slider">
-                </div>
-
-                <!-- Подавление зеленой каймы (Spill reduction) -->
-                <div class="prop-group">
-                  <div class="prop-label-row">
-                    <label for="chromaSpill">Подавление каймы (Spill)</label>
-                    <span id="chromaSpillValue" class="unit-val">50%</span>
-                  </div>
-                  <input type="range" id="chromaSpill" min="0" max="100" value="50" class="styled-slider">
-                </div>
-              </div>
             </div>
 
             <!-- Позиция и Размер -->
@@ -343,8 +313,93 @@
           </div>
         </div>
 
-        <!-- Секция: Список слоев -->
-        <div class="panel-section layers-section">
+        <!-- Горизонтальный разделитель: Свойства <-> Хромакей -->
+        <div class="section-resizer" id="resizerPropsToChroma" title="Потяните вверх / вниз для изменения высоты блоков">
+          <div class="resizer-grip"></div>
+        </div>
+
+        <!-- Секция 2: Хромакей (Удаление зеленого / цветного фона) -->
+        <div class="panel-section resizable-section" id="chromaKeySection">
+          <div class="section-header">
+            <div class="section-title-with-toggle">
+              <span class="section-title">Хромакей</span>
+              <label class="checkbox-container">
+                <input type="checkbox" id="chromaKeyEnabled">
+                <span class="checkbox-custom"></span>
+                <span class="chromakey-title">Вкл</span>
+              </label>
+            </div>
+            <span class="layer-badge" id="chromaStatusBadge">Chroma</span>
+          </div>
+
+          <div id="chromaNoLayerNotice" class="no-selection-notice" style="display: block;">
+            Выберите слой для настройки хромакея
+          </div>
+
+          <div id="chromaKeyControls" class="chromakey-controls" style="display: none;">
+            <!-- Выбор цвета -->
+            <div class="chromakey-row">
+              <span class="prop-caption">Цвет фона:</span>
+              <div class="color-picker-wrapper">
+                <input type="color" id="chromaKeyColor" value="#00ff00" class="color-picker-input">
+                <span id="chromaKeyHex" class="color-hex-label">#00FF00</span>
+              </div>
+              <!-- Пипетка -->
+              <button id="btnChromaEyedropper" class="btn btn-secondary btn-small" title="Выбрать цвет пипеткой на холсте">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 11l-8-8-8.5 8.5a2.12 2.12 0 0 0 0 3l2.5 2.5a2.12 2.12 0 0 0 3 0L19 11z"></path>
+                  <path d="M5 19l-3 3"></path>
+                  <path d="M14 6l4 4"></path>
+                </svg>
+                Пипетка
+              </button>
+            </div>
+
+            <!-- Быстрые пресеты цветов -->
+            <div class="chromakey-presets">
+              <button type="button" class="preset-color-dot" data-color="#00ff00" style="background:#00ff00;" title="Зеленый (Green Screen)"></button>
+              <button type="button" class="preset-color-dot" data-color="#00ffff" style="background:#00ffff;" title="Бирюзовый"></button>
+              <button type="button" class="preset-color-dot" data-color="#0000ff" style="background:#0000ff;" title="Синий (Blue Screen)"></button>
+              <button type="button" class="preset-color-dot" data-color="#ffffff" style="background:#ffffff;" title="Белый"></button>
+              <button type="button" class="preset-color-dot" data-color="#000000" style="background:#000000;" title="Черный"></button>
+            </div>
+
+            <!-- Порог схожести (Threshold / Similarity) -->
+            <div class="prop-group">
+              <div class="prop-label-row">
+                <label for="chromaTolerance">Порог схожести</label>
+                <span id="chromaToleranceValue" class="unit-val">40%</span>
+              </div>
+              <input type="range" id="chromaTolerance" min="1" max="100" value="40" class="styled-slider">
+            </div>
+
+            <!-- Мягкость краев (Smoothness / Feather) -->
+            <div class="prop-group">
+              <div class="prop-label-row">
+                <label for="chromaFeather">Сглаживание краев</label>
+                <span id="chromaFeatherValue" class="unit-val">15%</span>
+              </div>
+              <input type="range" id="chromaFeather" min="0" max="60" value="15" class="styled-slider">
+            </div>
+
+            <!-- Подавление зеленой каймы (Spill reduction) -->
+            <div class="prop-group">
+              <div class="prop-label-row">
+                <label for="chromaSpill">Подавление каймы (Spill)</label>
+                <span id="chromaSpillValue" class="unit-val">50%</span>
+              </div>
+              <input type="range" id="chromaSpill" min="0" max="100" value="50" class="styled-slider">
+            </div>
+          </div>
+        </div>
+
+        <!-- Горизонтальный разделитель: Хромакей <-> Слои -->
+        <div class="section-resizer" id="resizerChromaToLayers" title="Потяните вверх / вниз для изменения высоты блоков">
+          <div class="resizer-grip"></div>
+        </div>
+
+        <!-- Секция 3: Список слоев -->
+        <div class="panel-section resizable-section layers-section" id="layersSection">
           <div class="section-header">
             <span class="section-title">Слои</span>
             <div class="layer-order-actions">
