@@ -372,12 +372,18 @@
           let w = img.naturalWidth;
           let h = img.naturalHeight;
 
-          // Если это первое загружаемое изображение — автоматически адаптируем холст под его размер!
-          if (state.layers.length === 0 && index === 0 && (img.naturalWidth >= 200 || img.naturalHeight >= 200)) {
-            state.canvasWidth = img.naturalWidth;
-            state.canvasHeight = img.naturalHeight;
+          // Если это первое загружаемое изображение — адаптируем холст:
+          // делаем его больше на 250 пикселей с каждой стороны (+500 к ширине и высоте),
+          // чтобы изображение располагалось по центру и вокруг было просторное рабочее поле с ручками
+          const PADDING = 250;
+          if (state.layers.length === 0 && index === 0) {
+            state.canvasWidth = img.naturalWidth + PADDING * 2;
+            state.canvasHeight = img.naturalHeight + PADDING * 2;
             if (dom.canvasPresetSelect) dom.canvasPresetSelect.value = 'custom';
             initCanvas(true);
+            w = img.naturalWidth;
+            h = img.naturalHeight;
+          } else if (state.layers.length === 0) {
             w = img.naturalWidth;
             h = img.naturalHeight;
           } else {
@@ -2008,51 +2014,146 @@
     });
   }
 
-  // --- Экспорт изображения ---
+  // --- Вычисление габаритов всех видимых слоев для точной обрезки при экспорте ---
+  function getVisibleLayersBounds() {
+    const visibleLayers = state.layers.filter(l => l.visible);
+    if (visibleLayers.length === 0) {
+      return { minX: 0, minY: 0, maxX: state.canvasWidth, maxY: state.canvasHeight };
+    }
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+    visibleLayers.forEach(layer => {
+      const rad = layer.rotation * DEG2RAD;
+      const cos = Math.abs(Math.cos(rad));
+      const sin = Math.abs(Math.sin(rad));
+      const boundW = layer.width * cos + layer.height * sin;
+      const boundH = layer.width * sin + layer.height * cos;
+
+      minX = Math.min(minX, layer.x - boundW / 2);
+      minY = Math.min(minY, layer.y - boundH / 2);
+      maxX = Math.max(maxX, layer.x + boundW / 2);
+      maxY = Math.max(maxY, layer.y + boundH / 2);
+    });
+
+    const clampedMinX = Math.max(0, Math.min(state.canvasWidth, Math.floor(minX)));
+    const clampedMinY = Math.max(0, Math.min(state.canvasHeight, Math.floor(minY)));
+    const clampedMaxX = Math.max(0, Math.min(state.canvasWidth, Math.ceil(maxX)));
+    const clampedMaxY = Math.max(0, Math.min(state.canvasHeight, Math.ceil(maxY)));
+
+    if (clampedMaxX <= clampedMinX || clampedMaxY <= clampedMinY) {
+      return { minX: 0, minY: 0, maxX: state.canvasWidth, maxY: state.canvasHeight };
+    }
+
+    return {
+      minX: clampedMinX,
+      minY: clampedMinY,
+      maxX: clampedMaxX,
+      maxY: clampedMaxY
+    };
+  }
+
+  // --- Экспорт изображения с автоматической обрезкой по краям готовой картинки ---
   function exportImage(format = 'png') {
-    if (state.layers.length === 0) {
-      alert('Нет добавленных слоев для экспорта!');
+    const visibleLayers = state.layers.filter(l => l.visible);
+    if (visibleLayers.length === 0) {
+      alert('Нет видимых слоев для экспорта!');
       return;
     }
 
-    // Создаем отдельный Canvas в полном исходном разрешении
-    const offCanvas = document.createElement('canvas');
-    offCanvas.width = state.canvasWidth;
-    offCanvas.height = state.canvasHeight;
-    const offCtx = offCanvas.getContext('2d');
+    // 1. Отрисовываем все видимые слои на полноразмерный прозрачный canvas
+    const layersCanvas = document.createElement('canvas');
+    layersCanvas.width = state.canvasWidth;
+    layersCanvas.height = state.canvasHeight;
+    const layersCtx = layersCanvas.getContext('2d');
 
-    // Если формат JPEG, прозрачность заменяем на белый или текущий фон
+    visibleLayers.forEach(layer => {
+      layersCtx.save();
+      layersCtx.translate(layer.x, layer.y);
+      layersCtx.rotate(layer.rotation * DEG2RAD);
+      layersCtx.scale(layer.flipX ? -1 : 1, layer.flipY ? -1 : 1);
+      layersCtx.globalAlpha = Math.max(0, Math.min(1, layer.opacity));
+      layersCtx.globalCompositeOperation = layer.blendMode || 'source-over';
+
+      const sourceImg = (layer.chromaKey && layer.chromaKey.enabled && layer.processedCanvas)
+        ? layer.processedCanvas
+        : layer.image;
+      layersCtx.drawImage(sourceImg, -layer.width / 2, -layer.height / 2, layer.width, layer.height);
+      layersCtx.restore();
+    });
+
+    // 2. Вычисляем точные границы готовой композиции (учитывая все слои)
+    let crop = getVisibleLayersBounds();
+
+    // Пробуем уточнить границы по фактическим непрозрачным пикселям
+    try {
+      const wGeo = crop.maxX - crop.minX;
+      const hGeo = crop.maxY - crop.minY;
+      if (wGeo > 0 && hGeo > 0) {
+        const imgData = layersCtx.getImageData(crop.minX, crop.minY, wGeo, hGeo);
+        const data = imgData.data;
+        let pMinX = wGeo, pMinY = hGeo, pMaxX = -1, pMaxY = -1;
+        let hasPixel = false;
+
+        for (let y = 0; y < hGeo; y++) {
+          const rowOffset = y * wGeo * 4;
+          for (let x = 0; x < wGeo; x++) {
+            const alpha = data[rowOffset + x * 4 + 3];
+            if (alpha > 0) {
+              if (x < pMinX) pMinX = x;
+              if (x > pMaxX) pMaxX = x;
+              if (y < pMinY) pMinY = y;
+              if (y > pMaxY) pMaxY = y;
+              hasPixel = true;
+            }
+          }
+        }
+
+        if (hasPixel) {
+          crop = {
+            minX: crop.minX + pMinX,
+            minY: crop.minY + pMinY,
+            maxX: crop.minX + pMaxX + 1,
+            maxY: crop.minY + pMaxY + 1
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Использованы геометрические границы слоев для обрезки', e);
+    }
+
+    const cropW = Math.max(1, crop.maxX - crop.minX);
+    const cropH = Math.max(1, crop.maxY - crop.minY);
+
+    // 3. Создаем обрезанный финальный холст точного размера готовой картинки
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = cropW;
+    finalCanvas.height = cropH;
+    const finalCtx = finalCanvas.getContext('2d');
+
+    // Если формат JPEG или задан непрозрачный цвет фона, заливаем фон
     if (format === 'jpeg') {
       const bg = state.canvasBg === 'transparent' ? '#ffffff' : 
                  (state.canvasBg === 'custom' ? state.customBgColor : state.canvasBg);
-      offCtx.fillStyle = bg;
-      offCtx.fillRect(0, 0, state.canvasWidth, state.canvasHeight);
+      finalCtx.fillStyle = bg;
+      finalCtx.fillRect(0, 0, cropW, cropH);
     } else if (state.canvasBg !== 'transparent') {
       const bg = state.canvasBg === 'custom' ? state.customBgColor : state.canvasBg;
-      offCtx.fillStyle = bg;
-      offCtx.fillRect(0, 0, state.canvasWidth, state.canvasHeight);
+      finalCtx.fillStyle = bg;
+      finalCtx.fillRect(0, 0, cropW, cropH);
     }
 
-    // Отрисовываем все видимые слои без рамок и маркеров выделения
-    state.layers.forEach(layer => {
-      if (!layer.visible) return;
-
-      offCtx.save();
-      offCtx.translate(layer.x, layer.y);
-      offCtx.rotate(layer.rotation * DEG2RAD);
-      offCtx.scale(layer.flipX ? -1 : 1, layer.flipY ? -1 : 1);
-      offCtx.globalAlpha = Math.max(0, Math.min(1, layer.opacity));
-      offCtx.globalCompositeOperation = layer.blendMode || 'source-over';
-
-      const sourceImg = (layer.chromaKey && layer.chromaKey.enabled && layer.processedCanvas) ? layer.processedCanvas : layer.image;
-      offCtx.drawImage(sourceImg, -layer.width / 2, -layer.height / 2, layer.width, layer.height);
-      offCtx.restore();
-    });
+    // Переносим готовую композицию без лишних пустых полей
+    finalCtx.drawImage(
+      layersCanvas,
+      crop.minX, crop.minY, cropW, cropH,
+      0, 0, cropW, cropH
+    );
 
     const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
     const quality = format === 'jpeg' ? 0.95 : undefined;
 
-    offCanvas.toBlob((blob) => {
+    finalCanvas.toBlob((blob) => {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
