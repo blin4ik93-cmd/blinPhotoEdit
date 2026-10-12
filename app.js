@@ -95,6 +95,8 @@
     viewport: document.getElementById('canvasViewport'),
     fileInput: document.getElementById('fileInput'),
     fileInputSecondary: document.getElementById('fileInputSecondary'),
+    folderInput: document.getElementById('folderInput'),
+    folderInputSecondary: document.getElementById('folderInputSecondary'),
     btnLoadDemo: document.getElementById('btnLoadDemo'),
     emptyHint: document.getElementById('emptyStateHint'),
     
@@ -115,6 +117,7 @@
     btnZoom100: document.getElementById('btnZoom100'),
     zoomDisplay: document.getElementById('zoomLevelDisplay'),
     canvasInfoText: document.getElementById('canvasInfoText'),
+    btnExportAllLayers: document.getElementById('btnExportAllLayers'),
     btnExportPng: document.getElementById('btnExportPng'),
     btnExportJpg: document.getElementById('btnExportJpg'),
     
@@ -124,13 +127,6 @@
     activeLayerNameBadge: document.getElementById('activeLayerNameBadge'),
     opacityRange: document.getElementById('opacityRange'),
     opacityNumber: document.getElementById('opacityNumber'),
-    blendModeSelect: document.getElementById('blendModeSelect'),
-    propX: document.getElementById('propX'),
-    propY: document.getElementById('propY'),
-    propWidth: document.getElementById('propWidth'),
-    propHeight: document.getElementById('propHeight'),
-    propRotation: document.getElementById('propRotation'),
-    rotationRange: document.getElementById('rotationRange'),
     btnFlipH: document.getElementById('btnFlipH'),
     btnFlipV: document.getElementById('btnFlipV'),
     btnResetRotate: document.getElementById('btnResetRotate'),
@@ -154,9 +150,11 @@
     chromaSpillValue: document.getElementById('chromaSpillValue'),
     chromaSaturation: document.getElementById('chromaSaturation'),
     chromaSaturationValue: document.getElementById('chromaSaturationValue'),
-    
+    btnChromaApplyAll: document.getElementById('btnChromaApplyAll'),
+
     // Слои
     layersList: document.getElementById('layersList'),
+    btnToggleAllVisibility: document.getElementById('btnToggleAllVisibility'),
     btnLayerUp: document.getElementById('btnLayerUp'),
     btnLayerDown: document.getElementById('btnLayerDown'),
     btnClearAll: document.getElementById('btnClearAll')
@@ -310,7 +308,7 @@
         processedCanvas: null
       };
       if (restored.chromaKey && restored.chromaKey.enabled) {
-        applyChromaKeyToLayer(restored);
+        applyImageProcessing(restored);
       }
       return restored;
     });
@@ -368,100 +366,135 @@
     render();
   }
 
-  function addImagesAsLayers(files) {
+  function isImageFile(file) {
+    if (!file) return false;
+    if (file.type && file.type.startsWith('image/')) return true;
+    const ext = (file.name || '').split('.').pop().toLowerCase();
+    return ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif', 'bmp', 'avif', 'ico', 'tiff'].includes(ext);
+  }
+
+  async function addImagesAsLayers(files) {
     if (!files || files.length === 0) return;
 
-    let loadedCount = 0;
-    const total = files.length;
+    const fileList = Array.from(files).filter(isImageFile);
 
-    Array.from(files).forEach((file, index) => {
-      if (!file.type.startsWith('image/')) return;
+    if (fileList.length === 0) {
+      alert('Не найдено изображений поддерживаемых форматов (PNG, JPG, WebP, SVG, GIF, BMP).');
+      return;
+    }
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          let w = img.naturalWidth;
-          let h = img.naturalHeight;
-
-          // Если это первое загружаемое изображение — адаптируем холст:
-          // делаем его больше на 250 пикселей с каждой стороны (+500 к ширине и высоте),
-          // чтобы изображение располагалось по центру и вокруг было просторное рабочее поле с ручками
-          const PADDING = 250;
-          if (state.layers.length === 0 && index === 0) {
-            state.canvasWidth = img.naturalWidth + PADDING * 2;
-            state.canvasHeight = img.naturalHeight + PADDING * 2;
-            if (dom.canvasPresetSelect) dom.canvasPresetSelect.value = 'custom';
-            initCanvas(true);
-            w = img.naturalWidth;
-            h = img.naturalHeight;
-          } else if (state.layers.length === 0) {
-            w = img.naturalWidth;
-            h = img.naturalHeight;
-          } else {
-            // Вычисляем оптимальный начальный размер в пределах холста
-            const maxInitialW = state.canvasWidth * 0.85;
-            const maxInitialH = state.canvasHeight * 0.85;
-
-            if (w > maxInitialW || h > maxInitialH) {
-              const scale = Math.min(maxInitialW / w, maxInitialH / h);
-              w = Math.round(w * scale);
-              h = Math.round(h * scale);
-            }
-          }
-
-          // Небольшое смещение слоев, если загружено несколько одновременно
-          const offsetX = (index % 5) * 20;
-          const offsetY = (index % 5) * 20;
-
-          const newLayer = {
-            id: 'layer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-            name: file.name.replace(/\.[^/.]+$/, "") || `Слой ${state.layers.length + 1}`,
-            image: img,
-            x: Math.round(state.canvasWidth / 2 + offsetX),
-            y: Math.round(state.canvasHeight / 2 + offsetY),
-            width: w,
-            height: h,
-            originalWidth: img.naturalWidth,
-            originalHeight: img.naturalHeight,
-            aspectRatio: img.naturalWidth / img.naturalHeight,
-            rotation: 0,
-            flipX: false,
-            flipY: false,
-            opacity: 1,
-            blendMode: 'source-over',
-            visible: true,
-            locked: false,
-            chromaKey: {
-              enabled: false,
-              color: '#00ff00',
-              targetR: 0,
-              targetG: 255,
-              targetB: 0,
-              tolerance: 40,
-              feather: 15,
-              spill: 50,
-              saturation: 0
-            },
-            processedCanvas: null
-          };
-
-          state.layers.push(newLayer);
-          state.selectedId = newLayer.id;
-
-          loadedCount++;
-          if (loadedCount === total) {
-            saveHistory('Добавлены изображения');
-            updateLayersUI();
-            updatePropertiesUI();
-            updateCanvasWrapperStyle();
-            render();
-          }
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
+    // Естественная алфавитно-числовая сортировка файлов (чтобы кадры/картинки шли по порядку: 1, 2, 10...)
+    fileList.sort((a, b) => {
+      const nameA = a.webkitRelativePath || a.name || '';
+      const nameB = b.webkitRelativePath || b.name || '';
+      return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
     });
+
+    const total = fileList.length;
+    const isFirstImport = state.layers.length === 0;
+
+    // Вспомогательная функция загрузки одного файла как Image
+    function loadSingleImage(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => resolve({ file, img, success: true });
+          img.onerror = () => {
+            console.warn('Не удалось загрузить изображение:', file.name);
+            resolve({ file, img: null, success: false });
+          };
+          img.src = e.target.result;
+        };
+        reader.onerror = () => {
+          console.warn('Ошибка чтения файла:', file.name);
+          resolve({ file, img: null, success: false });
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    let addedAny = false;
+
+    for (let index = 0; index < total; index++) {
+      const file = fileList[index];
+      const result = await loadSingleImage(file);
+      if (!result.success || !result.img) continue;
+
+      const img = result.img;
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+
+      // Если это самый первый слой в проекте — адаптируем холст:
+      // делаем его больше на 250px с каждой стороны (+500 к ширине и высоте)
+      const PADDING = 250;
+      if (isFirstImport && index === 0) {
+        state.canvasWidth = img.naturalWidth + PADDING * 2;
+        state.canvasHeight = img.naturalHeight + PADDING * 2;
+        if (dom.canvasPresetSelect) dom.canvasPresetSelect.value = 'custom';
+        initCanvas(true);
+        w = img.naturalWidth;
+        h = img.naturalHeight;
+      } else if (total > 1 || isFirstImport) {
+        // При пакетном импорте сохраняем масштаб 1:1
+        w = img.naturalWidth;
+        h = img.naturalHeight;
+      } else {
+        // Одиночное изображение на существующий холст
+        const maxInitialW = state.canvasWidth * 0.85;
+        const maxInitialH = state.canvasHeight * 0.85;
+        if (w > maxInitialW || h > maxInitialH) {
+          const scale = Math.min(maxInitialW / w, maxInitialH / h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+        }
+      }
+
+      // Все импортируемые слои центрируются ровно по центру холста
+      const newLayer = {
+        id: 'layer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6) + '_' + index,
+        name: file.name.replace(/\.[^/.]+$/, "") || `Слой ${state.layers.length + 1}`,
+        image: img,
+        x: Math.round(state.canvasWidth / 2),
+        y: Math.round(state.canvasHeight / 2),
+        width: w,
+        height: h,
+        originalWidth: img.naturalWidth,
+        originalHeight: img.naturalHeight,
+        aspectRatio: img.naturalWidth / img.naturalHeight,
+        rotation: 0,
+        flipX: false,
+        flipY: false,
+        opacity: 1,
+        blendMode: 'source-over',
+        visible: true,
+        locked: false,
+        chromaKey: {
+          enabled: false,
+          color: '#00ff00',
+          targetR: 0,
+          targetG: 255,
+          targetB: 0,
+          tolerance: 40,
+          feather: 15,
+          spill: 50,
+          saturation: 0
+        },
+        processedCanvas: null
+      };
+
+      state.layers.push(newLayer);
+      state.selectedId = newLayer.id;
+      addedAny = true;
+    }
+
+    if (addedAny) {
+      saveHistory(total > 1 ? `Импортировано изображений: ${total}` : 'Добавлено изображение');
+      updateLayersUI();
+      updatePropertiesUI();
+      updateCanvasWrapperStyle();
+      render();
+    }
   }
 
   function deleteSelectedLayer() {
@@ -500,7 +533,7 @@
     };
 
     if (dup.chromaKey && dup.chromaKey.enabled) {
-      applyChromaKeyToLayer(dup);
+      applyImageProcessing(dup);
     }
 
     const idx = state.layers.findIndex(l => l.id === layer.id);
@@ -536,10 +569,13 @@
     render();
   }
 
-  // --- Обработка Хромакея (Chroma Key Removal) ---
-  function applyChromaKeyToLayer(layer) {
+  // --- Обработка фильтров слоя (Хромакей) ---
+  function applyImageProcessing(layer) {
     if (!layer || !layer.image) return;
-    if (!layer.chromaKey || !layer.chromaKey.enabled) {
+
+    const hasChroma = layer.chromaKey && layer.chromaKey.enabled;
+
+    if (!hasChroma) {
       layer.processedCanvas = null;
       return;
     }
@@ -570,19 +606,21 @@
     const data = imgData.data;
     const len = data.length;
 
-    const tR = layer.chromaKey.targetR;
-    const tG = layer.chromaKey.targetG;
-    const tB = layer.chromaKey.targetB;
+    // --- Обработка Хромакея ---
+    const ck = layer.chromaKey;
+    const tR = ck.targetR;
+    const tG = ck.targetG;
+    const tB = ck.targetB;
 
     // Макс. дистанция в RGB пространстве = sqrt(255^2 * 3) ~ 441.67
-    const threshold = (layer.chromaKey.tolerance / 100) * 441.67;
-    const feather = (layer.chromaKey.feather / 100) * 441.67;
-    const spillFactor = layer.chromaKey.spill / 100;
+    const threshold = (ck.tolerance / 100) * 441.67;
+    const feather = (ck.feather / 100) * 441.67;
+    const spillFactor = ck.spill / 100;
 
     const isGreenKey = tG > tR + 20 && tG > tB + 20;
     const isBlueKey = tB > tR + 20 && tB > tG + 20;
 
-    const satValue = typeof layer.chromaKey.saturation === 'number' ? layer.chromaKey.saturation : 0;
+    const satValue = typeof ck.saturation === 'number' ? ck.saturation : 0;
     const satFactor = satValue / 100; // -1.0 до +1.0
 
     let targetHue = 120; // по умолчанию зеленый
@@ -619,6 +657,7 @@
       if (dist <= threshold) {
         // Полное удаление фона
         data[i + 3] = 0;
+        continue;
       } else if (feather > 0 && dist < threshold + feather) {
         // Мягкий переход прозрачности на границе
         const alphaRatio = (dist - threshold) / feather;
@@ -656,13 +695,12 @@
         }
       }
 
-      // Регулировка насыщенности (Photoshop Hue/Saturation для цвета хромакея)
+      // Регулировка насыщенности цвета хромакея
       if (satFactor !== 0 && data[i + 3] > 0) {
         const curR = data[i];
         const curG = data[i + 1];
         const curB = data[i + 2];
 
-        // Быстрая оптимизация: если целевой оттенок зеленый, а зеленый канал минимальный - пропускаем
         const isTargetNearGreen = (targetHue >= 80 && targetHue <= 160);
         if (!isTargetNearGreen || curG > curR || curG > curB) {
           const pMax = Math.max(curR, curG, curB);
@@ -736,6 +774,9 @@
 
     procCtx.putImageData(imgData, 0, 0);
   }
+
+  // Алиас для обратной совместимости
+  const applyChromaKeyToLayer = applyImageProcessing;
 
   // --- Отрисовка холста (Canvas Render) ---
   function render() {
@@ -1323,39 +1364,158 @@
     }
   });
 
-  // Drag & Drop файлов на холст
+  // Drag & Drop файлов и папок
+  let dragCounter = 0;
+
+  // Глобальная блокировка стандартного поведения браузера для drag & drop
   ['dragenter', 'dragover'].forEach(eventName => {
-    dom.viewport.addEventListener(eventName, (e) => {
+    window.addEventListener(eventName, (e) => {
       e.preventDefault();
-      e.stopPropagation();
-      dom.viewport.classList.add('drag-over');
-    });
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    }, false);
   });
 
-  ['dragleave', 'drop'].forEach(eventName => {
-    dom.viewport.addEventListener(eventName, (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      dom.viewport.classList.remove('drag-over');
-    });
+  window.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+  }, false);
+
+  window.addEventListener('dragenter', (e) => {
+    dragCounter++;
+    if (dom.viewport) dom.viewport.classList.add('drag-over');
   });
 
-  dom.viewport.addEventListener('drop', (e) => {
-    if (e.dataTransfer && e.dataTransfer.files) {
-      addImagesAsLayers(e.dataTransfer.files);
+  window.addEventListener('dragleave', (e) => {
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      if (dom.viewport) dom.viewport.classList.remove('drag-over');
     }
   });
+
+  // Рекурсивное чтение файлов из DataTransfer (включая файлы и вложенные папки)
+  async function getFilesFromDataTransfer(dataTransfer) {
+    if (!dataTransfer) return [];
+
+    // 1. Сначала пробуем взять обычные файлы через dataTransfer.files (самый надежный способ для отдельных файлов)
+    const directFiles = dataTransfer.files ? Array.from(dataTransfer.files) : [];
+
+    // Проверяем, есть ли среди items директории (папки)
+    const items = dataTransfer.items ? Array.from(dataTransfer.items) : [];
+    let hasDirectories = false;
+    const entries = [];
+
+    for (const item of items) {
+      if (typeof item.webkitGetAsEntry === 'function') {
+        try {
+          const entry = item.webkitGetAsEntry();
+          if (entry) {
+            entries.push(entry);
+            if (entry.isDirectory) hasDirectories = true;
+          }
+        } catch (e) {}
+      }
+    }
+
+    // Если папок нет и directFiles содержит файлы — сразу возвращаем их без медленного асинхронного API
+    if (!hasDirectories && directFiles.length > 0) {
+      return directFiles;
+    }
+
+    // Если были перетащены папки — обходим их рекурсивно
+    if (hasDirectories && entries.length > 0) {
+      const folderFiles = [];
+
+      async function readEntry(entry) {
+        if (!entry) return;
+        if (entry.isFile) {
+          return new Promise((resolve) => {
+            entry.file((f) => {
+              if (f) folderFiles.push(f);
+              resolve();
+            }, () => resolve());
+          });
+        } else if (entry.isDirectory) {
+          return new Promise((resolve) => {
+            const dirReader = entry.createReader();
+            const readBatch = () => {
+              dirReader.readEntries(async (batch) => {
+                if (!batch || batch.length === 0) {
+                  resolve();
+                } else {
+                  for (const child of batch) {
+                    await readEntry(child);
+                  }
+                  readBatch();
+                }
+              }, () => resolve());
+            };
+            readBatch();
+          });
+        }
+      }
+
+      for (const entry of entries) {
+        await readEntry(entry);
+      }
+
+      if (folderFiles.length > 0) return folderFiles;
+    }
+
+    // Запасной вариант 1: directFiles
+    if (directFiles.length > 0) return directFiles;
+
+    // Запасной вариант 2: items.getAsFile()
+    const fallbackFiles = [];
+    for (const item of items) {
+      if (item && item.kind === 'file') {
+        const f = item.getAsFile();
+        if (f) fallbackFiles.push(f);
+      }
+    }
+    return fallbackFiles;
+  }
+
+  // Общая функция обработки события Drop
+  async function handleDropEvent(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter = 0;
+    if (dom.viewport) dom.viewport.classList.remove('drag-over');
+
+    try {
+      const dt = e.dataTransfer;
+      if (!dt) return;
+
+      const files = await getFilesFromDataTransfer(dt);
+      if (files && files.length > 0) {
+        await addImagesAsLayers(files);
+      }
+    } catch (err) {
+      console.error('Ошибка при обработке файлов Drop:', err);
+    }
+  }
+
+  // Обработчик события Drop на холсте и на всем окне браузера
+  if (dom.viewport) {
+    dom.viewport.addEventListener('drop', handleDropEvent, false);
+  }
+  window.addEventListener('drop', handleDropEvent, false);
 
   // --- Обновление UI Свойств выбранного слоя ---
   function updatePropertiesUI(full = true) {
     const layer = getSelectedLayer();
     const chromaNotice = document.getElementById('chromaNoLayerNotice');
     const chromaBadge = document.getElementById('chromaStatusBadge');
+    const colorAdjustNotice = document.getElementById('colorAdjustNoLayerNotice');
+    const colorAdjustBadge = document.getElementById('colorAdjustStatusBadge');
 
     if (!layer) {
       dom.layerPropsContent.style.display = 'none';
       dom.noLayerSelectedNotice.style.display = 'block';
       dom.activeLayerNameBadge.textContent = 'Слой не выбран';
+
       if (chromaNotice) chromaNotice.style.display = 'block';
       if (dom.chromaKeyControls) dom.chromaKeyControls.style.display = 'none';
       if (dom.chromaKeyEnabled) {
@@ -1369,19 +1529,13 @@
     dom.layerPropsContent.style.display = 'flex';
     dom.noLayerSelectedNotice.style.display = 'none';
     dom.activeLayerNameBadge.textContent = layer.name;
+
     if (chromaNotice) chromaNotice.style.display = 'none';
     if (dom.chromaKeyEnabled) dom.chromaKeyEnabled.disabled = false;
 
-    // Значения
+    // Прозрачность
     dom.opacityRange.value = Math.round(layer.opacity * 100);
     dom.opacityNumber.value = Math.round(layer.opacity * 100);
-    dom.blendModeSelect.value = layer.blendMode || 'source-over';
-    dom.propX.value = layer.x;
-    dom.propY.value = layer.y;
-    dom.propWidth.value = layer.width;
-    dom.propHeight.value = layer.height;
-    dom.propRotation.value = layer.rotation;
-    dom.rotationRange.value = layer.rotation;
 
     // Контроллеры хромакея
     const ck = layer.chromaKey || { enabled: false, color: '#00ff00', tolerance: 40, feather: 15, spill: 50, saturation: 0 };
@@ -1403,8 +1557,43 @@
     if (chromaBadge) chromaBadge.textContent = ck.enabled ? 'Вкл' : 'Выкл';
   }
 
+  // Обновление состояния кнопки общего переключения видимости всех слоев
+  function updateMasterVisibilityButton() {
+    if (!dom.btnToggleAllVisibility) return;
+    if (state.layers.length === 0) {
+      dom.btnToggleAllVisibility.disabled = true;
+      dom.btnToggleAllVisibility.classList.remove('hidden-state');
+      dom.btnToggleAllVisibility.title = 'Нет слоев';
+      return;
+    }
+
+    dom.btnToggleAllVisibility.disabled = false;
+    const anyVisible = state.layers.some(l => l.visible);
+
+    if (anyVisible) {
+      dom.btnToggleAllVisibility.classList.remove('hidden-state');
+      dom.btnToggleAllVisibility.title = 'Выключить все слои (сделать невидимыми)';
+      dom.btnToggleAllVisibility.innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+      `;
+    } else {
+      dom.btnToggleAllVisibility.classList.add('hidden-state');
+      dom.btnToggleAllVisibility.title = 'Включить все слои (сделать видимыми)';
+      dom.btnToggleAllVisibility.innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+          <line x1="1" y1="1" x2="23" y2="23"></line>
+        </svg>
+      `;
+    }
+  }
+
   // --- Обновление Списка слоев (UI) ---
   function updateLayersUI() {
+    updateMasterVisibilityButton();
     dom.layersList.innerHTML = '';
 
     // Отображаем слои сверху вниз (от высшего индекса к нулевому)
@@ -1551,15 +1740,6 @@
     dom.opacityNumber.addEventListener('input', (e) => handleOpacityChange(Number(e.target.value)));
     dom.opacityNumber.addEventListener('change', () => saveHistory('Изменена прозрачность'));
 
-    // Режим наложения (Blend mode)
-    dom.blendModeSelect.addEventListener('change', (e) => {
-      const layer = getSelectedLayer();
-      if (!layer) return;
-      layer.blendMode = e.target.value;
-      saveHistory('Изменен режим смешивания');
-      render();
-    });
-
     // Хромакей (Chroma Key)
     const setChromaColor = (hex) => {
       const layer = getSelectedLayer();
@@ -1575,7 +1755,7 @@
       dom.chromaKeyColor.value = hex;
       dom.chromaKeyHex.textContent = hex.toUpperCase();
       if (layer.chromaKey.enabled) {
-        applyChromaKeyToLayer(layer);
+        applyImageProcessing(layer);
         render();
         updateLayersUI();
       }
@@ -1595,7 +1775,7 @@
       dom.chromaKeyControls.style.display = layer.chromaKey.enabled ? 'flex' : 'none';
       const chromaBadge = document.getElementById('chromaStatusBadge');
       if (chromaBadge) chromaBadge.textContent = layer.chromaKey.enabled ? 'Вкл' : 'Выкл';
-      applyChromaKeyToLayer(layer);
+      applyImageProcessing(layer);
       saveHistory(layer.chromaKey.enabled ? 'Включен хромакей' : 'Выключен хромакей');
       render();
       updateLayersUI();
@@ -1608,8 +1788,8 @@
       saveHistory('Изменен цвет хромакея');
     });
 
-    // Пресеты цветов
-    document.querySelectorAll('.preset-color-dot').forEach(btn => {
+    // Пресеты цветов хромакея
+    document.querySelectorAll('.preset-color-dot:not(.color-adjust-preset)').forEach(btn => {
       btn.addEventListener('click', () => {
         const color = btn.dataset.color;
         if (color) {
@@ -1626,7 +1806,7 @@
       layer.chromaKey.tolerance = Number(e.target.value);
       dom.chromaToleranceValue.textContent = `${e.target.value}%`;
       if (layer.chromaKey.enabled) {
-        applyChromaKeyToLayer(layer);
+        applyImageProcessing(layer);
         render();
       }
     });
@@ -1642,7 +1822,7 @@
       layer.chromaKey.feather = Number(e.target.value);
       dom.chromaFeatherValue.textContent = `${e.target.value}%`;
       if (layer.chromaKey.enabled) {
-        applyChromaKeyToLayer(layer);
+        applyImageProcessing(layer);
         render();
       }
     });
@@ -1658,7 +1838,7 @@
       layer.chromaKey.spill = Number(e.target.value);
       dom.chromaSpillValue.textContent = `${e.target.value}%`;
       if (layer.chromaKey.enabled) {
-        applyChromaKeyToLayer(layer);
+        applyImageProcessing(layer);
         render();
       }
     });
@@ -1667,7 +1847,7 @@
       updateLayersUI();
     });
 
-    // Насыщенность оттенка хромакея (Saturation / Hue Saturation)
+    // Насыщенность оттенка хромакея (Saturation)
     if (dom.chromaSaturation) {
       dom.chromaSaturation.addEventListener('input', (e) => {
         const layer = getSelectedLayer();
@@ -1676,7 +1856,7 @@
         layer.chromaKey.saturation = val;
         dom.chromaSaturationValue.textContent = val > 0 ? `+${val}%` : `${val}%`;
         if (layer.chromaKey.enabled) {
-          applyChromaKeyToLayer(layer);
+          applyImageProcessing(layer);
           render();
         }
       });
@@ -1686,7 +1866,7 @@
       });
     }
 
-    // Пипетка
+    // Пипетка хромакея
     dom.btnChromaEyedropper.addEventListener('click', async () => {
       const layer = getSelectedLayer();
       if (!layer) return;
@@ -1719,58 +1899,77 @@
       }
     });
 
-    // Позиция X, Y
-    dom.propX.addEventListener('change', (e) => {
-      const layer = getSelectedLayer();
-      if (!layer) return;
-      layer.x = Number(e.target.value) || 0;
-      saveHistory('Изменен X');
-      render();
-    });
+    // Применить параметры хромакея ко всем слоям
+    if (dom.btnChromaApplyAll) {
+      dom.btnChromaApplyAll.addEventListener('click', () => {
+        const activeLayer = getSelectedLayer();
+        if (!activeLayer) {
+          alert('Сначала выберите слой с настроенным хромакеем!');
+          return;
+        }
 
-    dom.propY.addEventListener('change', (e) => {
-      const layer = getSelectedLayer();
-      if (!layer) return;
-      layer.y = Number(e.target.value) || 0;
-      saveHistory('Изменен Y');
-      render();
-    });
+        if (state.layers.length <= 1) {
+          alert('В проекте только 1 слой. Добавьте другие слои, чтобы скопировать на них настройки хромакея.');
+          return;
+        }
 
-    // Размеры Ширина, Высота
-    dom.propWidth.addEventListener('change', (e) => {
-      const layer = getSelectedLayer();
-      if (!layer) return;
-      const w = Math.max(10, Number(e.target.value) || 10);
-      layer.width = w;
-      saveHistory('Изменена ширина');
-      render();
-    });
+        if (!activeLayer.chromaKey) {
+          const hex = dom.chromaKeyColor ? dom.chromaKeyColor.value : '#00ff00';
+          const rgb = hexToRgb(hex);
+          activeLayer.chromaKey = {
+            enabled: dom.chromaKeyEnabled ? dom.chromaKeyEnabled.checked : true,
+            color: hex,
+            targetR: rgb.r,
+            targetG: rgb.g,
+            targetB: rgb.b,
+            tolerance: Number(dom.chromaTolerance ? dom.chromaTolerance.value : 40),
+            feather: Number(dom.chromaFeather ? dom.chromaFeather.value : 15),
+            spill: Number(dom.chromaSpill ? dom.chromaSpill.value : 50),
+            saturation: Number(dom.chromaSaturation ? dom.chromaSaturation.value : 0)
+          };
+        }
 
-    dom.propHeight.addEventListener('change', (e) => {
-      const layer = getSelectedLayer();
-      if (!layer) return;
-      const h = Math.max(10, Number(e.target.value) || 10);
-      layer.height = h;
-      saveHistory('Изменена высота');
-      render();
-    });
+        const ckSource = { ...activeLayer.chromaKey };
 
-    // Поворот
-    const handleRotChange = (val) => {
-      const layer = getSelectedLayer();
-      if (!layer) return;
-      layer.rotation = Number(val) || 0;
-      dom.propRotation.value = layer.rotation;
-      dom.rotationRange.value = layer.rotation;
-      render();
-    };
+        let affectedCount = 0;
+        state.layers.forEach(l => {
+          if (l.id === activeLayer.id) return;
 
-    dom.rotationRange.addEventListener('input', (e) => handleRotChange(e.target.value));
-    dom.rotationRange.addEventListener('change', () => saveHistory('Изменен поворот'));
-    dom.propRotation.addEventListener('change', (e) => {
-      handleRotChange(e.target.value);
-      saveHistory('Изменен поворот');
-    });
+          l.chromaKey = {
+            enabled: ckSource.enabled,
+            color: ckSource.color,
+            targetR: ckSource.targetR,
+            targetG: ckSource.targetG,
+            targetB: ckSource.targetB,
+            tolerance: ckSource.tolerance,
+            feather: ckSource.feather,
+            spill: ckSource.spill,
+            saturation: ckSource.saturation
+          };
+
+          applyImageProcessing(l);
+          affectedCount++;
+        });
+
+        saveHistory(`Параметры хромакея применены ко всем слоям (${affectedCount})`);
+        render();
+        updateLayersUI();
+
+        // Визуальное подтверждение на кнопке
+        const origHTML = dom.btnChromaApplyAll.innerHTML;
+        dom.btnChromaApplyAll.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span style="color:#22c55e; font-weight:600;">Применено к ${affectedCount} слоям!</span>
+        `;
+        setTimeout(() => {
+          if (dom.btnChromaApplyAll) {
+            dom.btnChromaApplyAll.innerHTML = origHTML;
+          }
+        }, 1800);
+      });
+    }
 
     // Флип по горизонтали / вертикали
     dom.btnFlipH.addEventListener('click', () => {
@@ -1844,6 +2043,24 @@
     dom.btnLayerUp.addEventListener('click', () => moveLayerOrder('up'));
     dom.btnLayerDown.addEventListener('click', () => moveLayerOrder('down'));
 
+    // Переключение видимости всех слоев (Включить / Выключить все)
+    if (dom.btnToggleAllVisibility) {
+      dom.btnToggleAllVisibility.addEventListener('click', () => {
+        if (state.layers.length === 0) return;
+
+        const anyVisible = state.layers.some(l => l.visible);
+        const nextVisibility = !anyVisible;
+
+        state.layers.forEach(l => {
+          l.visible = nextVisibility;
+        });
+
+        saveHistory(nextVisibility ? 'Включены все слои' : 'Выключены все слои');
+        updateLayersUI();
+        render();
+      });
+    }
+
     // Очистить все слои
     dom.btnClearAll.addEventListener('click', () => {
       if (state.layers.length === 0) return;
@@ -1868,11 +2085,20 @@
         e.target.value = ''; // сброс для повторного выбора того же файла
       }
     };
-    dom.fileInput.addEventListener('change', onFileInput);
-    dom.fileInputSecondary.addEventListener('change', onFileInput);
+    if (dom.fileInput) dom.fileInput.addEventListener('change', onFileInput);
+    if (dom.fileInputSecondary) dom.fileInputSecondary.addEventListener('change', onFileInput);
+    if (dom.folderInput) dom.folderInput.addEventListener('change', onFileInput);
+    if (dom.folderInputSecondary) dom.folderInputSecondary.addEventListener('change', onFileInput);
 
     if (dom.btnLoadDemo) {
       dom.btnLoadDemo.addEventListener('click', loadDemoSamples);
+    }
+
+    // Клик по карточке-подсказке также открывает выбор файлов
+    if (dom.emptyHint) {
+      dom.emptyHint.addEventListener('click', () => {
+        if (dom.fileInput) dom.fileInput.click();
+      });
     }
 
     // Undo / Redo
@@ -1956,6 +2182,7 @@
     dom.btnZoom100.addEventListener('click', () => setZoom(1.0));
 
     // Экспорт
+    if (dom.btnExportAllLayers) dom.btnExportAllLayers.addEventListener('click', () => exportAllLayers('png'));
     dom.btnExportPng.addEventListener('click', () => exportImage('png'));
     dom.btnExportJpg.addEventListener('click', () => exportImage('jpeg'));
   }
@@ -2132,7 +2359,7 @@
         };
 
         if (layer.chromaKey && layer.chromaKey.enabled) {
-          applyChromaKeyToLayer(layer);
+          applyImageProcessing(layer);
         }
 
         state.layers.push(layer);
@@ -2151,16 +2378,16 @@
     });
   }
 
-  // --- Вычисление габаритов всех видимых слоев для точной обрезки при экспорте ---
-  function getVisibleLayersBounds() {
-    const visibleLayers = state.layers.filter(l => l.visible);
-    if (visibleLayers.length === 0) {
+  // --- Вычисление габаритов слоев для точной обрезки при экспорте ---
+  function getLayersBounds(customLayers = null) {
+    const list = customLayers || state.layers.filter(l => l.visible);
+    if (list.length === 0) {
       return { minX: 0, minY: 0, maxX: state.canvasWidth, maxY: state.canvasHeight };
     }
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
-    visibleLayers.forEach(layer => {
+    list.forEach(layer => {
       const rad = layer.rotation * DEG2RAD;
       const cos = Math.abs(Math.cos(rad));
       const sin = Math.abs(Math.sin(rad));
@@ -2188,6 +2415,10 @@
       maxX: clampedMaxX,
       maxY: clampedMaxY
     };
+  }
+
+  function getVisibleLayersBounds() {
+    return getLayersBounds();
   }
 
   // --- Экспорт изображения с автоматической обрезкой по краям готовой картинки ---
@@ -2303,6 +2534,146 @@
     }, mime, quality);
   }
 
+  // Всплывающее уведомление
+  function showToast(text, duration = 3000) {
+    let toast = document.getElementById('appToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'appToast';
+      toast.style.cssText = `
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #1e293b;
+        color: #f8fafc;
+        padding: 10px 18px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+        opacity: 0;
+        transform: translateY(10px);
+        pointer-events: none;
+      `;
+      document.body.appendChild(toast);
+    }
+    toast.textContent = text;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+    }, duration);
+  }
+
+  // --- Экспорт всех слоев отдельными файлами (шаблон image_1.png, image_2.png...) ---
+  async function exportAllLayers(format = 'png') {
+    if (state.layers.length === 0) {
+      alert('Нет слоев для экспорта!');
+      return;
+    }
+
+    // Если есть видимые слои, берем их, иначе экспортируем все имеющиеся слои
+    const targetLayers = state.layers.some(l => l.visible)
+      ? state.layers.filter(l => l.visible)
+      : state.layers;
+
+    if (targetLayers.length === 0) {
+      alert('Нет слоев для экспорта!');
+      return;
+    }
+
+    // Вычисляем общую рамку композиции с автоматической обрезкой пустых полей
+    let crop = getLayersBounds(targetLayers);
+    const cropW = Math.max(1, crop.maxX - crop.minX);
+    const cropH = Math.max(1, crop.maxY - crop.minY);
+
+    showToast(`Подготовка к экспорту ${targetLayers.length} слоев...`, 2000);
+
+    // Генерируем PNG-изображения для каждого слоя (с сохранением хромакея, трансформаций и прозрачности)
+    const blobs = [];
+    for (let i = 0; i < targetLayers.length; i++) {
+      const layer = targetLayers[i];
+      const layerCanvas = document.createElement('canvas');
+      layerCanvas.width = cropW;
+      layerCanvas.height = cropH;
+      const lCtx = layerCanvas.getContext('2d');
+
+      lCtx.save();
+      lCtx.translate(layer.x - crop.minX, layer.y - crop.minY);
+      lCtx.rotate(layer.rotation * DEG2RAD);
+      lCtx.scale(layer.flipX ? -1 : 1, layer.flipY ? -1 : 1);
+      lCtx.globalAlpha = Math.max(0, Math.min(1, layer.opacity));
+      lCtx.globalCompositeOperation = layer.blendMode || 'source-over';
+
+      const sourceImg = (layer.chromaKey && layer.chromaKey.enabled && layer.processedCanvas)
+        ? layer.processedCanvas
+        : layer.image;
+      lCtx.drawImage(sourceImg, -layer.width / 2, -layer.height / 2, layer.width, layer.height);
+      lCtx.restore();
+
+      const blob = await new Promise(resolve => layerCanvas.toBlob(resolve, 'image/png'));
+      blobs.push({
+        filename: `image_${i + 1}.png`,
+        blob
+      });
+    }
+
+    // 1. Попытка сохранения через File System Access API (диалог выбора папки на диске)
+    let savedViaDir = false;
+    if (window.showDirectoryPicker) {
+      try {
+        const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        if (dirHandle) {
+          showToast(`Сохранение ${blobs.length} файлов в папку...`, 3000);
+          for (let i = 0; i < blobs.length; i++) {
+            const item = blobs[i];
+            const fileHandle = await dirHandle.getFileHandle(item.filename, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(item.blob);
+            await writable.close();
+          }
+          savedViaDir = true;
+          showToast(`✓ Успешно экспортировано ${blobs.length} слоев (image_1.png .. image_${blobs.length}.png)!`, 4000);
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          // Пользователь отменил выбор папки
+          return;
+        }
+        console.warn('showDirectoryPicker не сработал, переключаемся на последовательную загрузку', err);
+      }
+    }
+
+    // 2. Если File System Access API недоступен — последовательное скачивание в браузер
+    if (!savedViaDir) {
+      showToast(`Скачивание ${blobs.length} файлов...`, 3000);
+      for (let i = 0; i < blobs.length; i++) {
+        const item = blobs[i];
+        const url = URL.createObjectURL(item.blob);
+        const link = document.createElement('a');
+        link.download = item.filename;
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+        if (i < blobs.length - 1) {
+          await new Promise(r => setTimeout(r, 200));
+        }
+      }
+      showToast(`✓ Скачано ${blobs.length} слоев: image_1.png .. image_${blobs.length}.png`, 4000);
+    }
+  }
+
   // --- Настройка интерактивных ручек ресайза холста (8 ручек: 4 угла + 4 стороны) ---
   function setupCanvasResizers() {
     const cursorMap = {
@@ -2385,59 +2756,6 @@
           applyTransform();
         }
       });
-    }
-
-    // 2. Вспомогательная функция для вертикального изменения высоты между секциями
-    function makeVerticalResizer(handle, upperSec, lowerSec) {
-      if (!handle || !upperSec || !lowerSec) return;
-
-      let isDragging = false;
-      let startY = 0;
-      let startUpperH = 0;
-      let startLowerH = 0;
-
-      handle.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        isDragging = true;
-        startY = e.clientY;
-        startUpperH = upperSec.getBoundingClientRect().height;
-        startLowerH = lowerSec.getBoundingClientRect().height;
-        document.body.classList.add('resizing-row');
-        handle.classList.add('active');
-      });
-
-      window.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        const deltaY = e.clientY - startY;
-        const minH = 48; // минимальная высота
-
-        const newUpperH = Math.max(minH, startUpperH + deltaY);
-        const newLowerH = Math.max(minH, startLowerH - deltaY);
-
-        upperSec.style.flex = `0 0 ${newUpperH}px`;
-        upperSec.style.height = `${newUpperH}px`;
-        lowerSec.style.flex = `0 0 ${newLowerH}px`;
-        lowerSec.style.height = `${newLowerH}px`;
-      });
-
-      window.addEventListener('mouseup', () => {
-        if (isDragging) {
-          isDragging = false;
-          document.body.classList.remove('resizing-row');
-          handle.classList.remove('active');
-        }
-      });
-    }
-
-    // Ресайзер между Свойствами слоя и Хромакеем
-    if (resizerPropsToChroma && secProps && secChroma) {
-      makeVerticalResizer(resizerPropsToChroma, secProps, secChroma);
-    }
-
-    // Ресайзер между Хромакеем и Слоями
-    if (resizerChromaToLayers && secChroma && secLayers) {
-      makeVerticalResizer(resizerChromaToLayers, secChroma, secLayers);
     }
   }
 

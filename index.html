@@ -38,6 +38,13 @@
             <span>Добавить фото</span>
             <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
           </label>
+          <label class="btn btn-secondary" title="Выбрать папку с изображениями и импортировать каждое на свой слой">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>Импорт папки</span>
+            <input type="file" id="folderInput" webkitdirectory directory multiple style="display: none;">
+          </label>
           <button id="btnLoadDemo" class="btn btn-secondary" title="Загрузить тестовые изображения с прозрачностью для быстрой пробы">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
@@ -66,6 +73,13 @@
 
         <!-- Экспорт (Справа в верхнем ряду - всегда свободен) -->
         <div class="toolbar-group toolbar-group-right">
+          <button id="btnExportAllLayers" class="btn btn-secondary" title="Экспортировать каждый слой в отдельный файл (image_1.png, image_2.png...)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+            </svg>
+            <span>Экспорт слоев</span>
+          </button>
           <button id="btnExportPng" class="btn btn-success" title="Скачать как PNG с сохранением прозрачности">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path>
@@ -163,8 +177,8 @@
               <polyline points="17 8 12 3 7 8"/>
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
-            <h3>Перетащите изображения сюда</h3>
-            <p>или нажмите кнопку <strong>«Добавить фото»</strong> вверху</p>
+            <h3>Перетащите изображения или папку сюда</h3>
+            <p>или используйте кнопки <strong>«Добавить фото»</strong> и <strong>«Импорт папки»</strong> вверху</p>
             <span class="hint-sub">Поддерживаются PNG, JPG, WebP, SVG, GIF с прозрачностью</span>
           </div>
         </div>
@@ -180,259 +194,229 @@
       <div class="sidebar-resizer" id="sidebarResizer" title="Потяните влево / вправо для изменения ширины панели свойств"></div>
 
       <!-- Правая панель: Свойства, Хромакей и Слои -->
+      <!-- Правая панель: Свойства, Хромакей, Цветокоррекция и Слои в едином блоке -->
       <aside class="sidebar-panel" id="sidebarPanel">
-        <!-- Секция 1: Свойства слоя (Трансформации, непрозрачность, наложение) -->
-        <div class="panel-section resizable-section" id="layerPropsSection">
-          <div class="section-header">
-            <span class="section-title">Свойства слоя</span>
-            <div class="header-right-badges">
-              <span id="activeLayerNameBadge" class="layer-badge">Слой не выбран</span>
+        <div class="sidebar-scrollable-content" id="sidebarScrollContent">
+          <!-- Секция 1: Свойства слоя (Трансформации, непрозрачность) -->
+          <div class="panel-section" id="layerPropsSection">
+            <div class="section-header">
+              <span class="section-title">Свойства слоя</span>
+              <div class="header-right-badges">
+                <span id="activeLayerNameBadge" class="layer-badge">Слой не выбран</span>
+              </div>
             </div>
-          </div>
 
-          <div id="noLayerSelectedNotice" class="no-selection-notice">
-            Выберите слой на холсте или в списке слоев
-          </div>
+            <div id="noLayerSelectedNotice" class="no-selection-notice">
+              Выберите слой на холсте или в списке слоев
+            </div>
 
-          <div id="layerPropsContent" class="props-content" style="display: none;">
-            <!-- Прозрачность (Opacity) -->
-            <div class="prop-group">
-              <div class="prop-label-row">
-                <label for="opacityRange">Прозрачность</label>
-                <div class="input-with-unit small">
-                  <input type="number" id="opacityNumber" min="0" max="100" value="100">
-                  <span class="unit">%</span>
+            <div id="layerPropsContent" class="props-content" style="display: none;">
+              <!-- Прозрачность (Opacity) -->
+              <div class="prop-group">
+                <div class="prop-label-row">
+                  <label for="opacityRange">Прозрачность</label>
+                  <div class="input-with-unit small">
+                    <input type="number" id="opacityNumber" min="0" max="100" value="100">
+                    <span class="unit">%</span>
+                  </div>
+                </div>
+                <input type="range" id="opacityRange" min="0" max="100" value="100" class="styled-slider">
+              </div>
+
+              <!-- Быстрые трансформации -->
+              <div class="prop-group">
+                <span class="prop-caption">Трансформации</span>
+                <div class="btn-group-row">
+                  <button id="btnFlipH" class="btn btn-secondary btn-icon-text" title="Отразить по горизонтали">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="8 3 4 7 8 11"></polyline>
+                      <polyline points="16 3 20 7 16 11"></polyline>
+                      <line x1="4" y1="7" x2="20" y2="7"></line>
+                      <line x1="12" y1="2" x2="12" y2="22" stroke-dasharray="2 2"></line>
+                    </svg>
+                    <span>Флип X</span>
+                  </button>
+                  <button id="btnFlipV" class="btn btn-secondary btn-icon-text" title="Отразить по вертикали">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 8 7 4 11 8"></polyline>
+                      <polyline points="3 16 7 20 11 16"></polyline>
+                      <line x1="7" y1="4" x2="7" y2="20"></line>
+                      <line x1="2" y1="12" x2="22" y2="12" stroke-dasharray="2 2"></line>
+                    </svg>
+                    <span>Флип Y</span>
+                  </button>
+                  <button id="btnResetRotate" class="btn btn-secondary" title="Сбросить угол поворота на 0°">0°</button>
+                </div>
+                <div class="btn-group-row" style="margin-top: 6px;">
+                  <button id="btnCenterLayer" class="btn btn-secondary btn-small" title="Отцентровать по холсту">В центр</button>
+                  <button id="btnFitCanvas" class="btn btn-secondary btn-small" title="Подогнать под размер холста">По холсту</button>
+                  <button id="btnResetScale" class="btn btn-secondary btn-small" title="Исходный размер изображения 100%">Оригинал 1:1</button>
                 </div>
               </div>
-              <input type="range" id="opacityRange" min="0" max="100" value="100" class="styled-slider">
-            </div>
 
-            <!-- Режим наложения (Blend mode) -->
-            <div class="prop-group">
-              <label for="blendModeSelect">Режим смешивания (Blend Mode)</label>
-              <select id="blendModeSelect" class="form-select full-width">
-                <option value="source-over">Обычный (Normal)</option>
-                <option value="multiply">Умножение (Multiply)</option>
-                <option value="screen">Осветление (Screen)</option>
-                <option value="overlay">Перекрытие (Overlay)</option>
-                <option value="darken">Затемнение (Darken)</option>
-                <option value="lighten">Светлее (Lighten)</option>
-                <option value="color-dodge">Осветление основы (Color Dodge)</option>
-                <option value="color-burn">Затемнение основы (Color Burn)</option>
-                <option value="hard-light">Жесткий свет (Hard Light)</option>
-                <option value="soft-light">Мягкий свет (Soft Light)</option>
-                <option value="difference">Разница (Difference)</option>
-                <option value="exclusion">Исключение (Exclusion)</option>
-                <option value="hue">Цветовой тон (Hue)</option>
-                <option value="saturation">Насыщенность (Saturation)</option>
-                <option value="color">Цветность (Color)</option>
-                <option value="luminosity">Яркость (Luminosity)</option>
-              </select>
-            </div>
-
-            <!-- Позиция и Размер -->
-            <div class="props-grid-2x2">
-              <div class="prop-control">
-                <span class="prop-caption">X (Центр)</span>
-                <input type="number" id="propX" class="form-input">
-              </div>
-              <div class="prop-control">
-                <span class="prop-caption">Y (Центр)</span>
-                <input type="number" id="propY" class="form-input">
-              </div>
-              <div class="prop-control">
-                <span class="prop-caption">Ширина (px)</span>
-                <input type="number" id="propWidth" min="1" class="form-input">
-              </div>
-              <div class="prop-control">
-                <span class="prop-caption">Высота (px)</span>
-                <input type="number" id="propHeight" min="1" class="form-input">
-              </div>
-            </div>
-
-            <!-- Поворот -->
-            <div class="prop-group">
-              <div class="prop-label-row">
-                <label for="rotationRange">Поворот</label>
-                <div class="input-with-unit small">
-                  <input type="number" id="propRotation" min="-360" max="360" value="0">
-                  <span class="unit">°</span>
+              <!-- Управление слоем -->
+              <div class="prop-group">
+                <div class="btn-group-row">
+                  <button id="btnDuplicateLayer" class="btn btn-secondary" title="Дублировать слой (Ctrl+D)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Дублировать
+                  </button>
+                  <button id="btnDeleteLayer" class="btn btn-danger" title="Удалить слой (Delete)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                    Удалить
+                  </button>
                 </div>
               </div>
-              <input type="range" id="rotationRange" min="-180" max="180" value="0" class="styled-slider">
+            </div>
+          </div>
+
+          <div class="section-divider-line"></div>
+
+          <!-- Секция 2: Хромакей (Удаление зеленого / цветного фона) -->
+          <div class="panel-section" id="chromaKeySection">
+            <div class="section-header">
+              <div class="section-title-with-toggle">
+                <span class="section-title">Хромакей</span>
+                <label class="checkbox-container">
+                  <input type="checkbox" id="chromaKeyEnabled">
+                  <span class="checkbox-custom"></span>
+                  <span class="chromakey-title">Вкл</span>
+                </label>
+              </div>
+              <span class="layer-badge" id="chromaStatusBadge">Chroma</span>
             </div>
 
-            <!-- Быстрые трансформации -->
-            <div class="prop-group">
-              <span class="prop-caption">Трансформации</span>
-              <div class="btn-group-row">
-                <button id="btnFlipH" class="btn btn-secondary btn-icon-text" title="Отразить по горизонтали">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="8 3 4 7 8 11"></polyline>
-                    <polyline points="16 3 20 7 16 11"></polyline>
-                    <line x1="4" y1="7" x2="20" y2="7"></line>
-                    <line x1="12" y1="2" x2="12" y2="22" stroke-dasharray="2 2"></line>
-                  </svg>
-                  <span>Флип X</span>
-                </button>
-                <button id="btnFlipV" class="btn btn-secondary btn-icon-text" title="Отразить по вертикали">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 8 7 4 11 8"></polyline>
-                    <polyline points="3 16 7 20 11 16"></polyline>
-                    <line x1="7" y1="4" x2="7" y2="20"></line>
-                    <line x1="2" y1="12" x2="22" y2="12" stroke-dasharray="2 2"></line>
-                  </svg>
-                  <span>Флип Y</span>
-                </button>
-                <button id="btnResetRotate" class="btn btn-secondary" title="Сбросить угол поворота на 0°">0°</button>
-              </div>
-              <div class="btn-group-row" style="margin-top: 6px;">
-                <button id="btnCenterLayer" class="btn btn-secondary btn-small" title="Отцентровать по холсту">В центр</button>
-                <button id="btnFitCanvas" class="btn btn-secondary btn-small" title="Подогнать под размер холста">По холсту</button>
-                <button id="btnResetScale" class="btn btn-secondary btn-small" title="Исходный размер изображения 100%">Оригинал 1:1</button>
-              </div>
+            <div id="chromaNoLayerNotice" class="no-selection-notice" style="display: block;">
+              Выберите слой для настройки хромакея
             </div>
 
-            <!-- Управление слоем -->
-            <div class="prop-group">
-              <div class="btn-group-row">
-                <button id="btnDuplicateLayer" class="btn btn-secondary" title="Дублировать слой (Ctrl+D)">
+            <div id="chromaKeyControls" class="chromakey-controls" style="display: none;">
+              <!-- Выбор цвета -->
+              <div class="chromakey-row">
+                <span class="prop-caption">Цвет фона:</span>
+                <div class="color-picker-wrapper">
+                  <input type="color" id="chromaKeyColor" value="#00ff00" class="color-picker-input">
+                  <span id="chromaKeyHex" class="color-hex-label">#00FF00</span>
+                </div>
+                <!-- Пипетка -->
+                <button id="btnChromaEyedropper" class="btn btn-secondary btn-small" title="Выбрать цвет пипеткой на холсте">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 11l-8-8-8.5 8.5a2.12 2.12 0 0 0 0 3l2.5 2.5a2.12 2.12 0 0 0 3 0L19 11z"></path>
+                    <path d="M5 19l-3 3"></path>
+                    <path d="M14 6l4 4"></path>
+                  </svg>
+                  Пипетка
+                </button>
+              </div>
+
+              <!-- Быстрые пресеты цветов -->
+              <div class="chromakey-presets">
+                <button type="button" class="preset-color-dot" data-color="#00ff00" style="background:#00ff00;" title="Зеленый (Green Screen)"></button>
+                <button type="button" class="preset-color-dot" data-color="#00ffff" style="background:#00ffff;" title="Бирюзовый"></button>
+                <button type="button" class="preset-color-dot" data-color="#0000ff" style="background:#0000ff;" title="Синий (Blue Screen)"></button>
+                <button type="button" class="preset-color-dot" data-color="#ffffff" style="background:#ffffff;" title="Белый"></button>
+                <button type="button" class="preset-color-dot" data-color="#000000" style="background:#000000;" title="Черный"></button>
+              </div>
+
+              <!-- Порог схожести (Threshold / Similarity) -->
+              <div class="prop-group">
+                <div class="prop-label-row">
+                  <label for="chromaTolerance">Порог схожести</label>
+                  <span id="chromaToleranceValue" class="unit-val">40%</span>
+                </div>
+                <input type="range" id="chromaTolerance" min="1" max="100" value="40" class="styled-slider">
+              </div>
+
+              <!-- Мягкость краев (Smoothness / Feather) -->
+              <div class="prop-group">
+                <div class="prop-label-row">
+                  <label for="chromaFeather">Сглаживание краев</label>
+                  <span id="chromaFeatherValue" class="unit-val">15%</span>
+                </div>
+                <input type="range" id="chromaFeather" min="0" max="60" value="15" class="styled-slider">
+              </div>
+
+              <!-- Подавление зеленой каймы (Spill reduction) -->
+              <div class="prop-group">
+                <div class="prop-label-row">
+                  <label for="chromaSpill">Подавление каймы (Spill)</label>
+                  <span id="chromaSpillValue" class="unit-val">50%</span>
+                </div>
+                <input type="range" id="chromaSpill" min="0" max="100" value="50" class="styled-slider">
+              </div>
+
+              <!-- Насыщенность цвета хромакея -->
+              <div class="prop-group">
+                <div class="prop-label-row">
+                  <label for="chromaSaturation">Насыщенность (Saturation)</label>
+                  <span id="chromaSaturationValue" class="unit-val">0%</span>
+                </div>
+                <input type="range" id="chromaSaturation" min="-100" max="100" value="0" class="styled-slider" title="Обесцвечивание остаточного оттенка хромакея (-100% обесцвечивает фон)">
+              </div>
+
+              <!-- Применить ко всем слоям -->
+              <div class="chromakey-action-row" style="margin-top: 6px; padding-top: 8px; border-top: 1px dashed rgba(255, 255, 255, 0.12);">
+                <button type="button" id="btnChromaApplyAll" class="btn btn-secondary btn-full" title="Скопировать все параметры хромакея с активного слоя и применить ко всем остальным слоям">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                    <path d="M12 11h4"></path>
+                    <path d="M12 16h4"></path>
+                    <path d="M8 11h.01"></path>
+                    <path d="M8 16h.01"></path>
                   </svg>
-                  Дублировать
+                  <span>Применить ко всем слоям</span>
                 </button>
-                <button id="btnDeleteLayer" class="btn btn-danger" title="Удалить слой (Delete)">
+              </div>
+            </div>
+          </div>
+
+          <div class="section-divider-line"></div>
+
+          <!-- Секция 3: Список слоев -->
+          <div class="panel-section layers-section" id="layersSection">
+            <div class="section-header">
+              <span class="section-title">Слои</span>
+              <div class="layer-order-actions">
+                <button id="btnToggleAllVisibility" class="btn btn-icon btn-small" title="Выключить/включить видимость всех слоев">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
                   </svg>
-                  Удалить
                 </button>
+                <button id="btnLayerUp" class="btn btn-icon btn-small" title="Поднять слой выше">▲</button>
+                <button id="btnLayerDown" class="btn btn-icon btn-small" title="Опустить слой ниже">▼</button>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Горизонтальный разделитель: Свойства <-> Хромакей -->
-        <div class="section-resizer" id="resizerPropsToChroma" title="Потяните вверх / вниз для изменения высоты блоков">
-          <div class="resizer-grip"></div>
-        </div>
-
-        <!-- Секция 2: Хромакей (Удаление зеленого / цветного фона) -->
-        <div class="panel-section resizable-section" id="chromaKeySection">
-          <div class="section-header">
-            <div class="section-title-with-toggle">
-              <span class="section-title">Хромакей</span>
-              <label class="checkbox-container">
-                <input type="checkbox" id="chromaKeyEnabled">
-                <span class="checkbox-custom"></span>
-                <span class="chromakey-title">Вкл</span>
-              </label>
+            <div class="layers-list" id="layersList">
+              <!-- Элементы слоев будут динамически создаваться здесь -->
             </div>
-            <span class="layer-badge" id="chromaStatusBadge">Chroma</span>
-          </div>
 
-          <div id="chromaNoLayerNotice" class="no-selection-notice" style="display: block;">
-            Выберите слой для настройки хромакея
-          </div>
-
-          <div id="chromaKeyControls" class="chromakey-controls" style="display: none;">
-            <!-- Выбор цвета -->
-            <div class="chromakey-row">
-              <span class="prop-caption">Цвет фона:</span>
-              <div class="color-picker-wrapper">
-                <input type="color" id="chromaKeyColor" value="#00ff00" class="color-picker-input">
-                <span id="chromaKeyHex" class="color-hex-label">#00FF00</span>
-              </div>
-              <!-- Пипетка -->
-              <button id="btnChromaEyedropper" class="btn btn-secondary btn-small" title="Выбрать цвет пипеткой на холсте">
+            <div class="layers-footer">
+              <label class="btn btn-secondary btn-small add-layer-btn" title="Добавить фото">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M19 11l-8-8-8.5 8.5a2.12 2.12 0 0 0 0 3l2.5 2.5a2.12 2.12 0 0 0 3 0L19 11z"></path>
-                  <path d="M5 19l-3 3"></path>
-                  <path d="M14 6l4 4"></path>
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
                 </svg>
-                Пипетка
-              </button>
+                <span>Фото</span>
+                <input type="file" id="fileInputSecondary" accept="image/*" multiple style="display: none;">
+              </label>
+              <label class="btn btn-secondary btn-small add-layer-btn" title="Импортировать всю папку с изображениями">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <span>Папка</span>
+                <input type="file" id="folderInputSecondary" webkitdirectory directory multiple style="display: none;">
+              </label>
+              <button id="btnClearAll" class="btn btn-text-danger btn-small" title="Удалить все слои">Очистить всё</button>
             </div>
-
-            <!-- Быстрые пресеты цветов -->
-            <div class="chromakey-presets">
-              <button type="button" class="preset-color-dot" data-color="#00ff00" style="background:#00ff00;" title="Зеленый (Green Screen)"></button>
-              <button type="button" class="preset-color-dot" data-color="#00ffff" style="background:#00ffff;" title="Бирюзовый"></button>
-              <button type="button" class="preset-color-dot" data-color="#0000ff" style="background:#0000ff;" title="Синий (Blue Screen)"></button>
-              <button type="button" class="preset-color-dot" data-color="#ffffff" style="background:#ffffff;" title="Белый"></button>
-              <button type="button" class="preset-color-dot" data-color="#000000" style="background:#000000;" title="Черный"></button>
-            </div>
-
-            <!-- Порог схожести (Threshold / Similarity) -->
-            <div class="prop-group">
-              <div class="prop-label-row">
-                <label for="chromaTolerance">Порог схожести</label>
-                <span id="chromaToleranceValue" class="unit-val">40%</span>
-              </div>
-              <input type="range" id="chromaTolerance" min="1" max="100" value="40" class="styled-slider">
-            </div>
-
-            <!-- Мягкость краев (Smoothness / Feather) -->
-            <div class="prop-group">
-              <div class="prop-label-row">
-                <label for="chromaFeather">Сглаживание краев</label>
-                <span id="chromaFeatherValue" class="unit-val">15%</span>
-              </div>
-              <input type="range" id="chromaFeather" min="0" max="60" value="15" class="styled-slider">
-            </div>
-
-            <!-- Подавление зеленой каймы (Spill reduction) -->
-            <div class="prop-group">
-              <div class="prop-label-row">
-                <label for="chromaSpill">Подавление каймы (Spill)</label>
-                <span id="chromaSpillValue" class="unit-val">50%</span>
-              </div>
-              <input type="range" id="chromaSpill" min="0" max="100" value="50" class="styled-slider">
-            </div>
-
-            <!-- Насыщенность цвета (Hue / Saturation) -->
-            <div class="prop-group">
-              <div class="prop-label-row">
-                <label for="chromaSaturation">Насыщенность (Saturation)</label>
-                <span id="chromaSaturationValue" class="unit-val">0%</span>
-              </div>
-              <input type="range" id="chromaSaturation" min="-100" max="100" value="0" class="styled-slider" title="Обесцвечивание оттенка хромакея (-100% убирает весь зеленый цвет, как в Photoshop)">
-            </div>
-          </div>
-        </div>
-
-        <!-- Горизонтальный разделитель: Хромакей <-> Слои -->
-        <div class="section-resizer" id="resizerChromaToLayers" title="Потяните вверх / вниз для изменения высоты блоков">
-          <div class="resizer-grip"></div>
-        </div>
-
-        <!-- Секция 3: Список слоев -->
-        <div class="panel-section resizable-section layers-section" id="layersSection">
-          <div class="section-header">
-            <span class="section-title">Слои</span>
-            <div class="layer-order-actions">
-              <button id="btnLayerUp" class="btn btn-icon btn-small" title="Поднять слой выше">▲</button>
-              <button id="btnLayerDown" class="btn btn-icon btn-small" title="Опустить слой ниже">▼</button>
-            </div>
-          </div>
-
-          <div class="layers-list" id="layersList">
-            <!-- Элементы слоев будут динамически создаваться здесь -->
-          </div>
-
-          <div class="layers-footer">
-            <label class="btn btn-secondary btn-small add-layer-btn" title="Добавить еще изображение">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              Добавить изображение
-              <input type="file" id="fileInputSecondary" accept="image/*" multiple style="display: none;">
-            </label>
-            <button id="btnClearAll" class="btn btn-text-danger btn-small" title="Удалить все слои">Очистить всё</button>
           </div>
         </div>
       </aside>
